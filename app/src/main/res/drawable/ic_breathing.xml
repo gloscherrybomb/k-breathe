@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Simplified lung/breathing icon -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,2C11.45,2 11,2.45 11,3L11,8.59C9.53,9.22 8.53,10.67 8.53,12.35C8.53,13.14 8.75,13.88 9.14,14.5L6.5,17.15C5.67,17.97 5.67,19.3 6.5,20.12C7.33,20.95 8.66,20.95 9.49,20.12L12,17.61L14.51,20.12C15.34,20.95 16.67,20.95 17.5,20.12C18.33,19.3 18.33,17.97 17.5,17.15L14.86,14.5C15.25,13.88 15.47,13.14 15.47,12.35C15.47,10.67 14.47,9.22 13,8.59L13,3C13,2.45 12.55,2 12,2ZM12,10.35C13.1,10.35 14,11.25 14,12.35C14,13.45 13.1,14.35 12,14.35C10.9,14.35 10,13.45 10,12.35C10,11.25 10.9,10.35 12,10.35Z" />
+</vector>

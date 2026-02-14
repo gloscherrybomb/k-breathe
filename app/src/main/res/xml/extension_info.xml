@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ExtensionInfo
+    displayName="@string/extension_name"
+    icon="@drawable/ic_breathing"
+    id="tymewear"
+    scansDevices="true">
+
+    <DataType
+        typeId="ve"
+        displayName="@string/ve_name"
+        description="@string/ve_desc"
+        graphical="true"
+        icon="@drawable/ic_breathing" />
+
+    <DataType
+        typeId="br"
+        displayName="@string/br_name"
+        description="@string/br_desc"
+        graphical="false"
+        icon="@drawable/ic_breathing" />
+
+    <DataType
+        typeId="tv"
+        displayName="@string/tv_name"
+        description="@string/tv_desc"
+        graphical="false"
+        icon="@drawable/ic_breathing" />
+
+</ExtensionInfo>

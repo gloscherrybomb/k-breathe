@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">Tymewear</string>
+    <string name="extension_name">Tymewear VitalPro</string>
+
+    <string name="ve_name">Ventilation</string>
+    <string name="ve_desc">Minute ventilation (VE) in L/min from Tymewear VitalPro</string>
+
+    <string name="br_name">Breathing Rate</string>
+    <string name="br_desc">Breathing rate in breaths/min from Tymewear VitalPro</string>
+
+    <string name="tv_name">Tidal Volume</string>
+    <string name="tv_desc">Tidal volume per breath from Tymewear VitalPro</string>
+</resources>
