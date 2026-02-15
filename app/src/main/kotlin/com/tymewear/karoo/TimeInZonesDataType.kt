@@ -15,6 +15,7 @@ import io.hammerhead.karooext.models.StreamState
 import io.hammerhead.karooext.models.ViewConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class TimeInZonesDataType(extension: String) : DataTypeImpl(extension, "ve_zones") {
@@ -47,11 +48,36 @@ class TimeInZonesDataType(extension: String) : DataTypeImpl(extension, "ve_zones
     override fun startView(context: Context, config: ViewConfig, emitter: ViewEmitter) {
         val scope = CoroutineScope(Dispatchers.IO)
         val job = scope.launch {
-            TymewearData.zoneTimes.collect { zt ->
+            // Poll at 1Hz — use shared zone times from recording if active,
+            // otherwise track locally from live VE zone
+            val localZones = longArrayOf(0, 0, 0, 0, 0)
+            var localTotal = 0L
+
+            while (true) {
+                val shared = TymewearData.zoneTimes.value
+
+                // Use shared zone times if recording is active (total > 0)
+                val zt: ZoneTimes
+                if (shared.total > 0) {
+                    zt = shared
+                } else {
+                    // Track from live VE zone when not recording
+                    val zone = TymewearData.veZone.value
+                    if (zone in 1..5) {
+                        localZones[zone - 1]++
+                        localTotal++
+                    }
+                    zt = ZoneTimes(
+                        z1 = localZones[0], z2 = localZones[1], z3 = localZones[2],
+                        z4 = localZones[3], z5 = localZones[4], total = localTotal,
+                    )
+                }
+
                 val bitmap = renderBars(zt)
                 val remoteViews = RemoteViews(context.packageName, R.layout.view_time_in_zones)
                 remoteViews.setImageViewBitmap(R.id.zones_image, bitmap)
                 emitter.updateView(remoteViews)
+                delay(1000)
             }
         }
         emitter.setCancellable { job.cancel() }
