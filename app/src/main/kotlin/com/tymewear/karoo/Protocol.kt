@@ -59,7 +59,7 @@ object Protocol {
     // -------------------------------------------------------------------------
 
     // Device names observed: "VitalPro R", "VitalPro BR", "VitalPro S",
-    // "vitalpro-hw8-small", "vitalpro-hw8-regular", "TYME-6A64"
+    // "vitalpro-hw8-small", "vitalpro-hw8-regular", "TYME-XXXX"
     private val DEVICE_NAME_PATTERNS = listOf("vitalpro", "tymewear")
     private const val HR_SENSOR_PREFIX = "tymehr"
     private val TYME_STRAP_REGEX = Regex("^tyme-[0-9a-f]{4}$")
@@ -86,7 +86,7 @@ object Protocol {
     }
 
     // -------------------------------------------------------------------------
-    // Data parsing — validated against live BLE capture from TYME-6A64 strap
+    // Data parsing — validated against live BLE capture from TYME-XXXX strap
     // -------------------------------------------------------------------------
 
     // ALL breathing data arrives on characteristic 40B50004 (not 40B50001).
