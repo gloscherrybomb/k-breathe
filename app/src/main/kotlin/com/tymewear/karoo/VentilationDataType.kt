@@ -1,54 +1,56 @@
 package com.tymewear.karoo
 
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.graphics.Color
 import android.widget.RemoteViews
 import io.hammerhead.karooext.extension.DataTypeImpl
 import io.hammerhead.karooext.internal.Emitter
 import io.hammerhead.karooext.internal.ViewEmitter
 import io.hammerhead.karooext.models.DataPoint
+import io.hammerhead.karooext.models.DataType
 import io.hammerhead.karooext.models.StreamState
 import io.hammerhead.karooext.models.ViewConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import java.util.LinkedList
-import kotlin.math.roundToInt
 
 /**
- * Graphical data type showing minute ventilation (VE) with 30-second rolling average
+ * Graphical data type showing minute ventilation (VE) with rolling average
  * and color-coded background based on ventilation zones.
+ * Tap to cycle smoothing: Instant -> 15s -> 30s.
  */
 class VentilationDataType(extension: String) : DataTypeImpl(extension, "ve") {
 
-    // 30-second rolling buffer for smoothing
-    private val buffer = LinkedList<Double>()
-    private val bufferSize = 30
+    // 30-second rolling buffer for startStream (Karoo numeric system always gets 30s avg)
+    private val streamBuffer = LinkedList<Double>()
+    private val streamBufferSize = 30
 
     override fun startStream(emitter: Emitter<StreamState>) {
         val scope = CoroutineScope(Dispatchers.IO)
 
         val job = scope.launch {
             TymewearData.minuteVolume.collect { ve ->
-                // Update rolling buffer
-                synchronized(buffer) {
-                    buffer.addLast(ve)
-                    while (buffer.size > bufferSize) {
-                        buffer.removeFirst()
+                synchronized(streamBuffer) {
+                    streamBuffer.addLast(ve)
+                    while (streamBuffer.size > streamBufferSize) {
+                        streamBuffer.removeFirst()
                     }
                 }
 
-                val avg = synchronized(buffer) {
-                    if (buffer.isEmpty()) 0.0
-                    else buffer.sum() / buffer.size
+                val avg = synchronized(streamBuffer) {
+                    if (streamBuffer.isEmpty()) 0.0
+                    else streamBuffer.sum() / streamBuffer.size
                 }
 
                 emitter.onNext(
                     StreamState.Streaming(
                         DataPoint(
                             dataTypeId = dataTypeId,
-                            values = mapOf("ve" to avg),
+                            values = mapOf(DataType.Field.SINGLE to avg),
                         ),
                     ),
                 )
@@ -57,25 +59,44 @@ class VentilationDataType(extension: String) : DataTypeImpl(extension, "ve") {
 
         emitter.setCancellable {
             job.cancel()
-            synchronized(buffer) { buffer.clear() }
+            synchronized(streamBuffer) { streamBuffer.clear() }
         }
     }
 
     override fun startView(context: Context, config: ViewConfig, emitter: ViewEmitter) {
         val scope = CoroutineScope(Dispatchers.IO)
+        val viewBuffer = LinkedList<Double>()
+
+        val tapIntent = PendingIntent.getBroadcast(
+            context,
+            0,
+            Intent(context, SmoothingReceiver::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
 
         val job = scope.launch {
-            while (true) {
-                val ve = synchronized(buffer) {
-                    if (buffer.isEmpty()) 0.0
-                    else buffer.sum() / buffer.size
+            combine(
+                TymewearData.minuteVolume,
+                SmoothingState.mode,
+            ) { ve, mode -> ve to mode }.collect { (ve, mode) ->
+                // Maintain buffer up to current mode's window size
+                synchronized(viewBuffer) {
+                    viewBuffer.addLast(ve)
+                    while (viewBuffer.size > mode.windowSize) {
+                        viewBuffer.removeFirst()
+                    }
+                }
+
+                val avg = synchronized(viewBuffer) {
+                    if (viewBuffer.isEmpty()) 0.0
+                    else viewBuffer.sum() / viewBuffer.size
                 }
                 val zone = TymewearData.veZone.value
 
                 val remoteViews = RemoteViews(context.packageName, R.layout.view_ventilation)
 
                 // Set VE value text
-                val displayValue = if (ve > 0) String.format("%.1f", ve) else "--"
+                val displayValue = if (avg > 0) String.format("%.1f", avg) else "--"
                 remoteViews.setTextViewText(R.id.text_value, displayValue)
 
                 // Set zone label and background color
@@ -83,16 +104,13 @@ class VentilationDataType(extension: String) : DataTypeImpl(extension, "ve") {
                 remoteViews.setTextViewText(R.id.text_zone, zoneName)
                 remoteViews.setInt(R.id.container, "setBackgroundColor", bgColor)
 
-                // Scale text size based on view config
-                val scaledSize = (config.textSize * 0.9f)
-                remoteViews.setTextViewTextSize(
-                    R.id.text_value,
-                    android.util.TypedValue.COMPLEX_UNIT_SP,
-                    scaledSize,
-                )
+                // Unit label shows smoothing mode
+                remoteViews.setTextViewText(R.id.text_unit, mode.label)
+
+                // Tap to cycle smoothing
+                remoteViews.setOnClickPendingIntent(R.id.container, tapIntent)
 
                 emitter.updateView(remoteViews)
-                delay(1000) // ~1Hz update
             }
         }
 
@@ -102,15 +120,14 @@ class VentilationDataType(extension: String) : DataTypeImpl(extension, "ve") {
     }
 
     companion object {
-        // Zone 0 = no data (dark grey)
-        // Zone 1 = Endurance (green)
-        // Zone 2 = VT1-VT2 Threshold (yellow/orange)
-        // Zone 3 = VO2max+ (red)
+        // Tymewear 5-zone model
         fun zoneStyle(zone: Int): Pair<String, Int> = when (zone) {
-            1 -> "Z1" to Color.parseColor("#2E7D32")   // Green
-            2 -> "Z2" to Color.parseColor("#F57F17")   // Amber
-            3 -> "Z3" to Color.parseColor("#C62828")   // Red
-            else -> "" to Color.parseColor("#424242")   // Grey
+            1 -> "Z1" to Color.parseColor("#546E7A")   // Blue Grey
+            2 -> "Z2" to Color.parseColor("#0277BD")   // Blue
+            3 -> "Z3" to Color.parseColor("#2E7D32")   // Green
+            4 -> "Z4" to Color.parseColor("#F57F17")   // Amber
+            5 -> "Z5" to Color.parseColor("#C62828")   // Red
+            else -> "" to Color.parseColor("#424242")   // Dark Grey
         }
     }
 }

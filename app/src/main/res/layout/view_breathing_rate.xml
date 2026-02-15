@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/container"
+    android:id="@+id/br_container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="#424242"
     android:padding="4dp">
 
     <LinearLayout
@@ -12,7 +13,7 @@
         android:orientation="vertical">
 
         <TextView
-            android:id="@+id/text_value"
+            android:id="@+id/text_br_value"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center"
@@ -22,23 +23,13 @@
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/text_unit"
+            android:id="@+id/text_br_unit"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center"
-            android:text="L/min"
+            android:text="brpm"
             android:textColor="#CCFFFFFF"
             android:textSize="12sp" />
-
-        <TextView
-            android:id="@+id/text_zone"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:text=""
-            android:textColor="#FFFFFF"
-            android:textSize="14sp"
-            android:textStyle="bold" />
 
     </LinearLayout>
 

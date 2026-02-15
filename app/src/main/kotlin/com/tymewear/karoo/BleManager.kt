@@ -15,6 +15,8 @@ import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import java.util.UUID
 import java.util.LinkedList
 import kotlinx.coroutines.channels.awaitClose
@@ -54,12 +56,9 @@ class BleManager(private val context: Context) {
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
 
-        // Filter by VitalPro service UUID for efficient scanning
-        val filters = listOf(
-            ScanFilter.Builder()
-                .setServiceUuid(android.os.ParcelUuid(Protocol.VITALPRO_SERVICE_UUID))
-                .build(),
-        )
+        // Scan without UUID filter — VitalPro may not advertise service UUID.
+        // We filter by device name in the callback instead.
+        val filters = emptyList<ScanFilter>()
 
         val callback = object : ScanCallback() {
             private val seen = mutableSetOf<String>()
@@ -67,6 +66,11 @@ class BleManager(private val context: Context) {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 val name = result.device.name ?: return
                 val address = result.device.address
+
+                // Log all named devices for debugging
+                if (!seen.contains(address)) {
+                    Timber.d("BLE device seen: $name ($address)")
+                }
 
                 if (!Protocol.isVitalProDevice(name)) return
                 if (sensorId != null && !Protocol.matchesSensorId(name, sensorId)) return
@@ -93,7 +97,7 @@ class BleManager(private val context: Context) {
 
     /**
      * Connect to a VitalPro device by MAC address and observe breathing data notifications.
-     * Returns a Flow of raw byte arrays from the breathing data characteristic.
+     * Includes automatic reconnection with exponential backoff on disconnect.
      */
     fun connect(address: String): Flow<ConnectionEvent> = callbackFlow {
         val device: BluetoothDevice = bluetoothAdapter?.getRemoteDevice(address)
@@ -103,82 +107,103 @@ class BleManager(private val context: Context) {
             }
 
         var gatt: BluetoothGatt? = null
+        var reconnectAttempt = 0
+        val maxReconnectAttempts = 10
+        val handler = Handler(Looper.getMainLooper())
+        var closed = false
 
-        val callback = object : BluetoothGattCallback() {
-            override fun onConnectionStateChange(
-                g: BluetoothGatt,
-                status: Int,
-                newState: Int,
-            ) {
-                when (newState) {
-                    BluetoothProfile.STATE_CONNECTED -> {
-                        Timber.d("GATT connected to $address")
-                        trySend(ConnectionEvent.Connected)
-                        g.discoverServices()
-                    }
-                    BluetoothProfile.STATE_DISCONNECTED -> {
-                        Timber.d("GATT disconnected from $address (status=$status)")
-                        trySend(ConnectionEvent.Disconnected)
-                        close()
+        fun attemptConnect(autoConnect: Boolean) {
+            if (closed) return
+            Timber.d("Connecting GATT to $address (autoConnect=$autoConnect, attempt=$reconnectAttempt)")
+            // Close any existing GATT before reconnecting
+            gatt?.close()
+            gatt = device.connectGatt(context, autoConnect, object : BluetoothGattCallback() {
+                override fun onConnectionStateChange(
+                    g: BluetoothGatt,
+                    status: Int,
+                    newState: Int,
+                ) {
+                    when (newState) {
+                        BluetoothProfile.STATE_CONNECTED -> {
+                            Timber.d("GATT connected to $address (status=$status)")
+                            reconnectAttempt = 0
+                            trySend(ConnectionEvent.Connected)
+                            g.discoverServices()
+                        }
+                        BluetoothProfile.STATE_DISCONNECTED -> {
+                            Timber.d("GATT disconnected from $address (status=$status)")
+                            trySend(ConnectionEvent.Disconnected)
+                            // Attempt reconnection with backoff
+                            if (!closed && reconnectAttempt < maxReconnectAttempts) {
+                                reconnectAttempt++
+                                val delayMs = (2000L * reconnectAttempt).coerceAtMost(30000L)
+                                Timber.d("Scheduling reconnect attempt $reconnectAttempt in ${delayMs}ms")
+                                handler.postDelayed({
+                                    attemptConnect(true)
+                                }, delayMs)
+                            } else if (!closed) {
+                                Timber.e("Max reconnect attempts reached for $address")
+                                close()
+                            }
+                        }
                     }
                 }
-            }
 
-            override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
-                if (status != BluetoothGatt.GATT_SUCCESS) {
-                    Timber.e("Service discovery failed: $status")
-                    close(Exception("Service discovery failed: $status"))
-                    return
+                override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
+                    if (status != BluetoothGatt.GATT_SUCCESS) {
+                        Timber.e("Service discovery failed: $status")
+                        // Treat as disconnect and retry
+                        g.disconnect()
+                        return
+                    }
+                    Timber.d("Services discovered, subscribing to notifications")
+                    subscribeToAllCharacteristics(g)
                 }
-                Timber.d("Services discovered, subscribing to notifications")
-                subscribeToAllCharacteristics(g)
-            }
 
-            override fun onCharacteristicChanged(
-                g: BluetoothGatt,
-                characteristic: BluetoothGattCharacteristic,
-                value: ByteArray,
-            ) {
-                Timber.d("Notification from ${characteristic.uuid}: ${value.size} bytes")
-                trySend(ConnectionEvent.Data(characteristic.uuid, value))
-            }
+                override fun onCharacteristicChanged(
+                    g: BluetoothGatt,
+                    characteristic: BluetoothGattCharacteristic,
+                    value: ByteArray,
+                ) {
+                    trySend(ConnectionEvent.Data(characteristic.uuid, value))
+                }
 
-            @Suppress("DEPRECATION")
-            @Deprecated("Deprecated in API 33")
-            override fun onCharacteristicChanged(
-                g: BluetoothGatt,
-                characteristic: BluetoothGattCharacteristic,
-            ) {
                 @Suppress("DEPRECATION")
-                val value = characteristic.value ?: return
-                Timber.d("Notification from ${characteristic.uuid}: ${value.size} bytes (legacy)")
-                trySend(ConnectionEvent.Data(characteristic.uuid, value))
-            }
-
-            override fun onDescriptorWrite(
-                g: BluetoothGatt,
-                descriptor: BluetoothGattDescriptor,
-                status: Int,
-            ) {
-                val charUuid = descriptor.characteristic.uuid
-                if (status == BluetoothGatt.GATT_SUCCESS) {
-                    Timber.d("Notification subscription active for $charUuid")
-                    trySend(ConnectionEvent.Subscribed)
-                    // Process next queued descriptor write
-                    subscribeNext(g)
-                } else {
-                    Timber.e("Descriptor write failed for $charUuid: $status")
-                    // Continue with remaining subscriptions even if one fails
-                    subscribeNext(g)
+                @Deprecated("Deprecated in API 33")
+                override fun onCharacteristicChanged(
+                    g: BluetoothGatt,
+                    characteristic: BluetoothGattCharacteristic,
+                ) {
+                    @Suppress("DEPRECATION")
+                    val value = characteristic.value ?: return
+                    trySend(ConnectionEvent.Data(characteristic.uuid, value))
                 }
-            }
+
+                override fun onDescriptorWrite(
+                    g: BluetoothGatt,
+                    descriptor: BluetoothGattDescriptor,
+                    status: Int,
+                ) {
+                    val charUuid = descriptor.characteristic.uuid
+                    if (status == BluetoothGatt.GATT_SUCCESS) {
+                        Timber.d("Notification subscription active for $charUuid")
+                        trySend(ConnectionEvent.Subscribed)
+                        subscribeNext(g)
+                    } else {
+                        Timber.e("Descriptor write failed for $charUuid: $status")
+                        subscribeNext(g)
+                    }
+                }
+            }, BluetoothDevice.TRANSPORT_LE)
         }
 
-        Timber.d("Connecting GATT to $address")
-        gatt = device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
+        // First connection: direct (not autoConnect) for faster initial connect
+        attemptConnect(false)
 
         awaitClose {
             Timber.d("Closing GATT connection to $address")
+            closed = true
+            handler.removeCallbacksAndMessages(null)
             gatt?.close()
         }
     }

@@ -35,14 +35,47 @@ class TymewearDevice(
             uid = uid,
             dataTypes = listOf(
                 DataType.dataTypeId(extension, "ve"),
+                DataType.dataTypeId(extension, "ve_graph"),
                 DataType.dataTypeId(extension, "br"),
                 DataType.dataTypeId(extension, "tv"),
+                DataType.dataTypeId(extension, "mi"),
+                DataType.dataTypeId(extension, "mi_bat"),
             ),
             displayName = displayName,
         )
     }
 
     private var scope: CoroutineScope? = null
+
+    private fun emitDataPoints(emitter: Emitter<DeviceEvent>, data: Protocol.BreathingData) {
+        emitter.onNext(
+            OnDataPoint(
+                DataPoint(
+                    dataTypeId = DataType.dataTypeId(extension, "ve"),
+                    values = mapOf(DataType.Field.SINGLE to data.minuteVolume),
+                    sourceId = uid,
+                ),
+            ),
+        )
+        emitter.onNext(
+            OnDataPoint(
+                DataPoint(
+                    dataTypeId = DataType.dataTypeId(extension, "br"),
+                    values = mapOf(DataType.Field.SINGLE to data.breathRate),
+                    sourceId = uid,
+                ),
+            ),
+        )
+        emitter.onNext(
+            OnDataPoint(
+                DataPoint(
+                    dataTypeId = DataType.dataTypeId(extension, "tv"),
+                    values = mapOf(DataType.Field.SINGLE to data.tidalVolume),
+                    sourceId = uid,
+                ),
+            ),
+        )
+    }
 
     /**
      * Connect to the BLE device and start emitting DeviceEvents.
@@ -80,50 +113,42 @@ class TymewearDevice(
 
                     is BleManager.ConnectionEvent.Data -> {
                         when (event.characteristicUuid) {
-                            Protocol.BREATHING_DATA_CHAR_UUID -> {
-                                val data = Protocol.parseBreathingData(event.bytes)
-                                if (data != null) {
-                                    TymewearData.update(data)
-
-                                    emitter.onNext(
-                                        OnDataPoint(
-                                            DataPoint(
-                                                dataTypeId = DataType.dataTypeId(extension, "ve"),
-                                                values = mapOf("ve" to data.minuteVolume),
-                                                sourceId = uid,
-                                            ),
-                                        ),
-                                    )
-
-                                    emitter.onNext(
-                                        OnDataPoint(
-                                            DataPoint(
-                                                dataTypeId = DataType.dataTypeId(extension, "br"),
-                                                values = mapOf("br" to data.breathRate),
-                                                sourceId = uid,
-                                            ),
-                                        ),
-                                    )
-
-                                    emitter.onNext(
-                                        OnDataPoint(
-                                            DataPoint(
-                                                dataTypeId = DataType.dataTypeId(extension, "tv"),
-                                                values = mapOf("tv" to data.tidalVolume),
-                                                sourceId = uid,
-                                            ),
-                                        ),
-                                    )
-                                } else {
-                                    Timber.w(
-                                        "Failed to parse breathing data: ${event.bytes.size} bytes, " +
-                                            "hex=${event.bytes.joinToString("") { "%02x".format(it) }}",
-                                    )
+                            Protocol.COMMAND_CHAR_UUID -> {
+                                // Primary data stream — all breathing data arrives here
+                                val pktType = Protocol.packetType(event.bytes)
+                                when (pktType) {
+                                    Protocol.PKT_BREATH -> {
+                                        val data = Protocol.parseNotification(event.bytes)
+                                        if (data != null) {
+                                            Timber.d(
+                                                "Breath: BR=%.1f bpm, TV_raw=%d (%.3f L), VE=%.1f L/min, " +
+                                                    "IE=%.2f, inhale=%d cs, exhale=%d cs, E=%d",
+                                                data.breathRate, data.tvRaw, data.tidalVolume,
+                                                data.minuteVolume, data.ieRatio,
+                                                data.inhaleDurationCs, data.exhaleDurationCs, data.fieldE,
+                                            )
+                                            TymewearData.update(data)
+                                            emitDataPoints(emitter, data)
+                                        }
+                                    }
+                                    Protocol.PKT_IMU -> {
+                                        // IMU data at ~1Hz — ignore for now
+                                    }
+                                    Protocol.PKT_ADC_PEAKS -> {
+                                        // Raw ADC peak data paired with breath packet — ignore for now
+                                    }
+                                    else -> {
+                                        Timber.d(
+                                            "Unknown pkt type 0x%02x: %d bytes, hex=%s",
+                                            pktType, event.bytes.size,
+                                            event.bytes.joinToString("") { "%02x".format(it) },
+                                        )
+                                    }
                                 }
                             }
-                            Protocol.COMMAND_CHAR_UUID -> {
+                            Protocol.BREATHING_DATA_CHAR_UUID -> {
                                 Timber.d(
-                                    "Command char notification: ${event.bytes.size} bytes, " +
+                                    "Char 0001 data: ${event.bytes.size} bytes, " +
                                         "hex=${event.bytes.joinToString("") { "%02x".format(it) }}",
                                 )
                             }

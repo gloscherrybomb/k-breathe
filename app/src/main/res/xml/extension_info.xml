@@ -13,17 +13,38 @@
         icon="@drawable/ic_breathing" />
 
     <DataType
+        typeId="ve_graph"
+        displayName="@string/ve_graph_name"
+        description="@string/ve_graph_desc"
+        graphical="true"
+        icon="@drawable/ic_breathing" />
+
+    <DataType
         typeId="br"
         displayName="@string/br_name"
         description="@string/br_desc"
-        graphical="false"
+        graphical="true"
         icon="@drawable/ic_breathing" />
 
     <DataType
         typeId="tv"
         displayName="@string/tv_name"
         description="@string/tv_desc"
-        graphical="false"
+        graphical="true"
+        icon="@drawable/ic_breathing" />
+
+    <DataType
+        typeId="mi"
+        displayName="@string/mi_name"
+        description="@string/mi_desc"
+        graphical="true"
+        icon="@drawable/ic_breathing" />
+
+    <DataType
+        typeId="mi_bat"
+        displayName="@string/mi_bat_name"
+        description="@string/mi_bat_desc"
+        graphical="true"
         icon="@drawable/ic_breathing" />
 
 </ExtensionInfo>

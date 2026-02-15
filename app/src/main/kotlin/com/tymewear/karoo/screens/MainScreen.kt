@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -29,29 +31,54 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.tymewear.karoo.TymewearData
 
+data class PrefsData(
+    val sensorId: String,
+    val endurance: Float,
+    val vt1: Float,
+    val vt2: Float,
+    val vo2max: Float,
+    val restingBr: Float,
+    val maxBr: Float,
+    val maxHr: Float,
+    val restingHr: Float,
+)
+
 @Composable
 fun MainScreen(
-    onSave: (sensorId: String, vt1: Float, vt2: Float) -> Unit,
-    loadPrefs: () -> Triple<String, Float, Float>,
+    onSave: (PrefsData) -> Unit,
+    loadPrefs: () -> PrefsData,
 ) {
     var sensorId by remember { mutableStateOf("") }
-    var vt1 by remember { mutableStateOf("40") }
-    var vt2 by remember { mutableStateOf("70") }
+    var endurance by remember { mutableStateOf("69") }
+    var vt1 by remember { mutableStateOf("83") }
+    var vt2 by remember { mutableStateOf("111") }
+    var vo2max by remember { mutableStateOf("180") }
+    var restingBr by remember { mutableStateOf("12") }
+    var maxBr by remember { mutableStateOf("55") }
+    var maxHr by remember { mutableStateOf("190") }
+    var restingHr by remember { mutableStateOf("60") }
     var saved by remember { mutableStateOf(false) }
     val isConnected by TymewearData.isConnected.collectAsState()
 
     LaunchedEffect(Unit) {
-        val (id, t1, t2) = loadPrefs()
-        sensorId = id
-        vt1 = t1.toString()
-        vt2 = t2.toString()
+        val prefs = loadPrefs()
+        sensorId = prefs.sensorId
+        endurance = prefs.endurance.toString()
+        vt1 = prefs.vt1.toString()
+        vt2 = prefs.vt2.toString()
+        vo2max = prefs.vo2max.toString()
+        restingBr = prefs.restingBr.toString()
+        maxBr = prefs.maxBr.toString()
+        maxHr = prefs.maxHr.toString()
+        restingHr = prefs.restingHr.toString()
     }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(16.dp),
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
@@ -79,7 +106,7 @@ fun MainScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         // Sensor ID
         OutlinedTextField(
@@ -90,21 +117,95 @@ fun MainScreen(
             singleLine = true,
         )
 
-        // VT1 Threshold
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // --- Ventilation Zone Thresholds ---
+        Text(
+            text = "Ventilation Zone Thresholds",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+
+        OutlinedTextField(
+            value = endurance,
+            onValueChange = { endurance = it; saved = false },
+            label = { Text("Endurance threshold (L/min)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            supportingText = { Text("Z1 Recovery below, Z2 Endurance above") },
+        )
+
         OutlinedTextField(
             value = vt1,
             onValueChange = { vt1 = it; saved = false },
-            label = { Text("VT1 Threshold (L/min)") },
+            label = { Text("VT1 threshold (L/min)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            supportingText = { Text("Z3 Tempo above") },
+        )
+
+        OutlinedTextField(
+            value = vt2,
+            onValueChange = { vt2 = it; saved = false },
+            label = { Text("VT2 threshold (L/min)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            supportingText = { Text("Z4 Threshold above") },
+        )
+
+        OutlinedTextField(
+            value = vo2max,
+            onValueChange = { vo2max = it; saved = false },
+            label = { Text("VO2max threshold (L/min)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            supportingText = { Text("Z5 VO2max above") },
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // --- Mobilization Index Parameters ---
+        Text(
+            text = "Mobilization Index",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+
+        OutlinedTextField(
+            value = restingBr,
+            onValueChange = { restingBr = it; saved = false },
+            label = { Text("Resting BR (bpm)") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         )
 
-        // VT2 Threshold
         OutlinedTextField(
-            value = vt2,
-            onValueChange = { vt2 = it; saved = false },
-            label = { Text("VT2 Threshold (L/min)") },
+            value = maxBr,
+            onValueChange = { maxBr = it; saved = false },
+            label = { Text("Max BR (bpm)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        )
+
+        OutlinedTextField(
+            value = maxHr,
+            onValueChange = { maxHr = it; saved = false },
+            label = { Text("Max HR (bpm)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        )
+
+        OutlinedTextField(
+            value = restingHr,
+            onValueChange = { restingHr = it; saved = false },
+            label = { Text("Resting HR (bpm)") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -115,9 +216,17 @@ fun MainScreen(
         Button(
             onClick = {
                 onSave(
-                    sensorId,
-                    vt1.toFloatOrNull() ?: 40f,
-                    vt2.toFloatOrNull() ?: 70f,
+                    PrefsData(
+                        sensorId = sensorId,
+                        endurance = endurance.toFloatOrNull() ?: 69f,
+                        vt1 = vt1.toFloatOrNull() ?: 83f,
+                        vt2 = vt2.toFloatOrNull() ?: 111f,
+                        vo2max = vo2max.toFloatOrNull() ?: 180f,
+                        restingBr = restingBr.toFloatOrNull() ?: 12f,
+                        maxBr = maxBr.toFloatOrNull() ?: 55f,
+                        maxHr = maxHr.toFloatOrNull() ?: 190f,
+                        restingHr = restingHr.toFloatOrNull() ?: 60f,
+                    ),
                 )
                 saved = true
             },
@@ -125,5 +234,7 @@ fun MainScreen(
         ) {
             Text(if (saved) "Saved" else "Save Settings")
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
