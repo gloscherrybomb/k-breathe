@@ -2,6 +2,8 @@
 
 A Karoo extension that connects to the [Tymewear VitalPro](https://www.tymewear.com/) breathing sensor, displaying live breathing metrics and recording them to FIT files.
 
+I really like coffee, so if this enhances your life, please buy me one :)
+
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/jeastwood)
 
 ## Screenshots
