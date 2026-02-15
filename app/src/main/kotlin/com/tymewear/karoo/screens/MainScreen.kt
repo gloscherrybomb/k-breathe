@@ -59,6 +59,7 @@ fun MainScreen(
     var maxHr by remember { mutableStateOf("190") }
     var restingHr by remember { mutableStateOf("60") }
     var saved by remember { mutableStateOf(false) }
+    var validationError by remember { mutableStateOf<String?>(null) }
     val isConnected by TymewearData.isConnected.collectAsState()
 
     LaunchedEffect(Unit) {
@@ -214,22 +215,62 @@ fun MainScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        if (validationError != null) {
+            Text(
+                text = validationError!!,
+                color = Color(0xFFEF5350),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+        }
+
         Button(
             onClick = {
-                onSave(
-                    PrefsData(
-                        sensorId = sensorId,
-                        endurance = endurance.toFloatOrNull() ?: Constants.DEFAULT_ENDURANCE,
-                        vt1 = vt1.toFloatOrNull() ?: Constants.DEFAULT_VT1,
-                        vt2 = vt2.toFloatOrNull() ?: Constants.DEFAULT_VT2,
-                        vo2max = vo2max.toFloatOrNull() ?: Constants.DEFAULT_VO2MAX,
-                        restingBr = restingBr.toFloatOrNull() ?: Constants.DEFAULT_RESTING_BR,
-                        maxBr = maxBr.toFloatOrNull() ?: Constants.DEFAULT_MAX_BR,
-                        maxHr = maxHr.toFloatOrNull() ?: Constants.DEFAULT_MAX_HR,
-                        restingHr = restingHr.toFloatOrNull() ?: Constants.DEFAULT_RESTING_HR,
-                    ),
-                )
-                saved = true
+                val eVal = endurance.toFloatOrNull()
+                val v1Val = vt1.toFloatOrNull()
+                val v2Val = vt2.toFloatOrNull()
+                val voVal = vo2max.toFloatOrNull()
+                val rBrVal = restingBr.toFloatOrNull()
+                val mBrVal = maxBr.toFloatOrNull()
+                val mHrVal = maxHr.toFloatOrNull()
+                val rHrVal = restingHr.toFloatOrNull()
+
+                val error = when {
+                    eVal == null || v1Val == null || v2Val == null || voVal == null ||
+                        rBrVal == null || mBrVal == null || mHrVal == null || rHrVal == null ->
+                        "All fields must be valid numbers."
+                    eVal <= 0 || v1Val <= 0 || v2Val <= 0 || voVal <= 0 ||
+                        rBrVal <= 0 || mBrVal <= 0 || mHrVal <= 0 || rHrVal <= 0 ->
+                        "All values must be positive."
+                    eVal >= v1Val || v1Val >= v2Val || v2Val >= voVal ->
+                        "Thresholds must be in order: Endurance < VT1 < VT2 < VO2max."
+                    rBrVal >= mBrVal ->
+                        "Resting BR must be less than Max BR."
+                    rHrVal >= mHrVal ->
+                        "Resting HR must be less than Max HR."
+                    else -> null
+                }
+
+                if (error != null) {
+                    validationError = error
+                    saved = false
+                } else {
+                    validationError = null
+                    onSave(
+                        PrefsData(
+                            sensorId = sensorId,
+                            endurance = eVal!!,
+                            vt1 = v1Val!!,
+                            vt2 = v2Val!!,
+                            vo2max = voVal!!,
+                            restingBr = rBrVal!!,
+                            maxBr = mBrVal!!,
+                            maxHr = mHrVal!!,
+                            restingHr = rHrVal!!,
+                        ),
+                    )
+                    saved = true
+                }
             },
             modifier = Modifier.fillMaxWidth(),
         ) {
