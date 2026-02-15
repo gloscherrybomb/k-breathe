@@ -44,6 +44,8 @@ class MobilizationIndexDataType(extension: String) : DataTypeImpl(extension, "mi
 
     override fun startView(context: Context, config: ViewConfig, emitter: ViewEmitter) {
         val scope = CoroutineScope(Dispatchers.IO)
+        val valueSize = config.textSize * 0.6f
+        val unitSize = config.textSize * 0.25f
         val job = scope.launch {
             combine(
                 TymewearData.mobilizationIndex,
@@ -56,28 +58,35 @@ class MobilizationIndexDataType(extension: String) : DataTypeImpl(extension, "mi
                 val rv = RemoteViews(context.packageName, R.layout.view_mi_percentage)
 
                 val displayValue: String
+                val unitLabel: String
                 val bgColor: Int
                 when {
                     !hasBr -> {
                         displayValue = "--"
+                        unitLabel = ""
                         bgColor = Color.parseColor("#424242")
                     }
                     !hasHr -> {
                         displayValue = "no HR"
+                        unitLabel = ""
                         bgColor = Color.parseColor("#424242")
                     }
                     hrr < 10.0 -> {
-                        // Low intensity — MI not meaningful
                         displayValue = "idle"
+                        unitLabel = ""
                         bgColor = Color.parseColor("#424242")
                     }
                     else -> {
                         val rounded = mi.roundToInt()
-                        displayValue = if (rounded > 100) ">100%" else "$rounded%"
+                        displayValue = if (rounded > 100) ">100" else "$rounded"
+                        unitLabel = "%"
                         bgColor = miColor(mi)
                     }
                 }
                 rv.setTextViewText(R.id.text_mi_value, displayValue)
+                rv.setTextViewText(R.id.text_mi_label, unitLabel)
+                rv.setFloat(R.id.text_mi_value, "setTextSize", valueSize)
+                rv.setFloat(R.id.text_mi_label, "setTextSize", unitSize)
                 rv.setInt(R.id.mi_container, "setBackgroundColor", bgColor)
 
                 emitter.updateView(rv)

@@ -74,6 +74,9 @@ class VentilationDataType(extension: String) : DataTypeImpl(extension, "ve") {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
+        val valueSize = config.textSize * 0.6f
+        val unitSize = config.textSize * 0.25f
+
         val job = scope.launch {
             combine(
                 TymewearData.minuteVolume,
@@ -98,10 +101,11 @@ class VentilationDataType(extension: String) : DataTypeImpl(extension, "ve") {
                 // Set VE value text
                 val displayValue = if (avg > 0) String.format("%.1f", avg) else "--"
                 remoteViews.setTextViewText(R.id.text_value, displayValue)
+                remoteViews.setFloat(R.id.text_value, "setTextSize", valueSize)
+                remoteViews.setFloat(R.id.text_unit, "setTextSize", unitSize)
 
-                // Set zone label and background color
-                val (zoneName, bgColor) = zoneStyle(zone)
-                remoteViews.setTextViewText(R.id.text_zone, zoneName)
+                // Set zone background color
+                val (_, bgColor) = zoneStyle(zone)
                 remoteViews.setInt(R.id.container, "setBackgroundColor", bgColor)
 
                 // Unit label shows smoothing mode

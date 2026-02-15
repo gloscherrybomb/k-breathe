@@ -47,4 +47,11 @@
         graphical="true"
         icon="@drawable/ic_breathing" />
 
+    <DataType
+        typeId="ve_zones"
+        displayName="@string/ve_zones_name"
+        description="@string/ve_zones_desc"
+        graphical="true"
+        icon="@drawable/ic_breathing" />
+
 </ExtensionInfo>

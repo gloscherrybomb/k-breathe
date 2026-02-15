@@ -4,6 +4,17 @@ import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+
+data class ZoneTimes(
+    val z1: Long = 0, val z2: Long = 0, val z3: Long = 0,
+    val z4: Long = 0, val z5: Long = 0, val total: Long = 0,
+) {
+    operator fun get(zone: Int): Long = when (zone) {
+        1 -> z1; 2 -> z2; 3 -> z3; 4 -> z4; 5 -> z5; else -> 0
+    }
+    val max: Long get() = maxOf(z1, z2, z3, z4, z5)
+}
 
 /**
  * Shared state holder for the latest breathing data from the VitalPro sensor.
@@ -28,6 +39,27 @@ object TymewearData {
 
     private val _isConnected = MutableStateFlow(false)
     val isConnected: StateFlow<Boolean> = _isConnected.asStateFlow()
+
+    // Zone time tracking (live, for TimeInZonesDataType display)
+    private val _zoneTimes = MutableStateFlow(ZoneTimes())
+    val zoneTimes: StateFlow<ZoneTimes> = _zoneTimes.asStateFlow()
+
+    fun incrementZoneTime(zone: Int) {
+        _zoneTimes.update { current ->
+            when (zone) {
+                1 -> current.copy(z1 = current.z1 + 1, total = current.total + 1)
+                2 -> current.copy(z2 = current.z2 + 1, total = current.total + 1)
+                3 -> current.copy(z3 = current.z3 + 1, total = current.total + 1)
+                4 -> current.copy(z4 = current.z4 + 1, total = current.total + 1)
+                5 -> current.copy(z5 = current.z5 + 1, total = current.total + 1)
+                else -> current
+            }
+        }
+    }
+
+    fun resetZoneTimes() {
+        _zoneTimes.value = ZoneTimes()
+    }
 
     // Zone thresholds (loaded from prefs)
     var enduranceThreshold = 69.0

@@ -2,21 +2,24 @@
     <string name="app_name">Tymewear</string>
     <string name="extension_name">Tymewear VitalPro</string>
 
-    <string name="ve_name">Ventilation</string>
+    <string name="ve_name">VE</string>
     <string name="ve_desc">Minute ventilation (VE) in L/min from Tymewear VitalPro</string>
 
     <string name="ve_graph_name">VE Graph</string>
     <string name="ve_graph_desc">Rolling VE graph with ventilation zone background</string>
 
-    <string name="br_name">Breathing Rate</string>
+    <string name="br_name">BR</string>
     <string name="br_desc">Breathing rate in breaths/min from Tymewear VitalPro</string>
 
-    <string name="tv_name">Tidal Volume</string>
+    <string name="tv_name">TV</string>
     <string name="tv_desc">Tidal volume per breath in mL from Tymewear VitalPro</string>
 
-    <string name="mi_name">MI Percentage</string>
+    <string name="mi_name">MI %</string>
     <string name="mi_desc">Mobilization Index percentage with color-coded background</string>
 
-    <string name="mi_bat_name">MI Battery</string>
+    <string name="mi_bat_name">MI Batt</string>
     <string name="mi_bat_desc">Mobilization Index as breathing reserve battery gauge</string>
+
+    <string name="ve_zones_name">VE Zones</string>
+    <string name="ve_zones_desc">Time spent in each ventilation zone</string>
 </resources>

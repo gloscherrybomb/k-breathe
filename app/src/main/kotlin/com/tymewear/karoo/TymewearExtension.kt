@@ -30,14 +30,6 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
     private val scope = CoroutineScope(Dispatchers.IO)
     private var hrrJob: Job? = null
 
-    // Zone time tracking for session summary (5 zones)
-    private var zone1Seconds = 0L
-    private var zone2Seconds = 0L
-    private var zone3Seconds = 0L
-    private var zone4Seconds = 0L
-    private var zone5Seconds = 0L
-    private var totalRecordSeconds = 0L
-
     override val types by lazy {
         listOf(
             VentilationDataType(extension),
@@ -46,6 +38,7 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
             TidalVolumeDataType(extension),
             MobilizationIndexDataType(extension),
             MiBatteryDataType(extension),
+            TimeInZonesDataType(extension),
         )
     }
 
@@ -126,12 +119,7 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
     }
 
     override fun startFit(emitter: Emitter<FitEffect>) {
-        zone1Seconds = 0L
-        zone2Seconds = 0L
-        zone3Seconds = 0L
-        zone4Seconds = 0L
-        zone5Seconds = 0L
-        totalRecordSeconds = 0L
+        TymewearData.resetZoneTimes()
 
         val prefs = applicationContext.getSharedPreferences("tymewear_prefs", MODE_PRIVATE)
         val endurance = prefs.getFloat("endurance_threshold", 69f).toDouble()
@@ -151,15 +139,8 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
                         val brr = TymewearData.percentBrr.value
                         val zone = Protocol.veZone(ve, endurance, vt1, vt2, vo2max)
 
-                        // Track zone time
-                        totalRecordSeconds++
-                        when (zone) {
-                            1 -> zone1Seconds++
-                            2 -> zone2Seconds++
-                            3 -> zone3Seconds++
-                            4 -> zone4Seconds++
-                            5 -> zone5Seconds++
-                        }
+                        // Track zone time (shared state for live display + FIT)
+                        TymewearData.incrementZoneTime(zone)
 
                         // Write per-second record fields
                         emitter.onNext(
@@ -208,36 +189,22 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
     }
 
     private fun writeSessionSummary(emitter: Emitter<FitEffect>) {
-        if (totalRecordSeconds == 0L) return
+        val zt = TymewearData.zoneTimes.value
+        if (zt.total == 0L) return
 
         emitter.onNext(
             WriteToSessionMesg(
                 listOf(
-                    FieldValue(Protocol.FIT_FIELD_VE_ZONE1_TIME, zone1Seconds / 60.0),
-                    FieldValue(
-                        Protocol.FIT_FIELD_VE_ZONE1_PCT,
-                        zone1Seconds * 100.0 / totalRecordSeconds,
-                    ),
-                    FieldValue(Protocol.FIT_FIELD_VE_ZONE2_TIME, zone2Seconds / 60.0),
-                    FieldValue(
-                        Protocol.FIT_FIELD_VE_ZONE2_PCT,
-                        zone2Seconds * 100.0 / totalRecordSeconds,
-                    ),
-                    FieldValue(Protocol.FIT_FIELD_VE_ZONE3_TIME, zone3Seconds / 60.0),
-                    FieldValue(
-                        Protocol.FIT_FIELD_VE_ZONE3_PCT,
-                        zone3Seconds * 100.0 / totalRecordSeconds,
-                    ),
-                    FieldValue(Protocol.FIT_FIELD_VE_ZONE4_TIME, zone4Seconds / 60.0),
-                    FieldValue(
-                        Protocol.FIT_FIELD_VE_ZONE4_PCT,
-                        zone4Seconds * 100.0 / totalRecordSeconds,
-                    ),
-                    FieldValue(Protocol.FIT_FIELD_VE_ZONE5_TIME, zone5Seconds / 60.0),
-                    FieldValue(
-                        Protocol.FIT_FIELD_VE_ZONE5_PCT,
-                        zone5Seconds * 100.0 / totalRecordSeconds,
-                    ),
+                    FieldValue(Protocol.FIT_FIELD_VE_ZONE1_TIME, zt.z1 / 60.0),
+                    FieldValue(Protocol.FIT_FIELD_VE_ZONE1_PCT, zt.z1 * 100.0 / zt.total),
+                    FieldValue(Protocol.FIT_FIELD_VE_ZONE2_TIME, zt.z2 / 60.0),
+                    FieldValue(Protocol.FIT_FIELD_VE_ZONE2_PCT, zt.z2 * 100.0 / zt.total),
+                    FieldValue(Protocol.FIT_FIELD_VE_ZONE3_TIME, zt.z3 / 60.0),
+                    FieldValue(Protocol.FIT_FIELD_VE_ZONE3_PCT, zt.z3 * 100.0 / zt.total),
+                    FieldValue(Protocol.FIT_FIELD_VE_ZONE4_TIME, zt.z4 / 60.0),
+                    FieldValue(Protocol.FIT_FIELD_VE_ZONE4_PCT, zt.z4 * 100.0 / zt.total),
+                    FieldValue(Protocol.FIT_FIELD_VE_ZONE5_TIME, zt.z5 / 60.0),
+                    FieldValue(Protocol.FIT_FIELD_VE_ZONE5_PCT, zt.z5 * 100.0 / zt.total),
                 ),
             ),
         )

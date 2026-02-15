@@ -42,6 +42,8 @@ class BreathingRateDataType(extension: String) : DataTypeImpl(extension, "br") {
 
     override fun startView(context: Context, config: ViewConfig, emitter: ViewEmitter) {
         val scope = CoroutineScope(Dispatchers.IO)
+        val valueSize = config.textSize * 0.6f
+        val unitSize = config.textSize * 0.25f
 
         val job = scope.launch {
             TymewearData.breathRate.collect { br ->
@@ -49,6 +51,8 @@ class BreathingRateDataType(extension: String) : DataTypeImpl(extension, "br") {
 
                 val displayValue = if (br > 0) br.roundToInt().toString() else "--"
                 remoteViews.setTextViewText(R.id.text_br_value, displayValue)
+                remoteViews.setFloat(R.id.text_br_value, "setTextSize", valueSize)
+                remoteViews.setFloat(R.id.text_br_unit, "setTextSize", unitSize)
 
                 emitter.updateView(remoteViews)
             }

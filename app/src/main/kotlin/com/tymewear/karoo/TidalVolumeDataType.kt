@@ -44,6 +44,8 @@ class TidalVolumeDataType(extension: String) : DataTypeImpl(extension, "tv") {
 
     override fun startView(context: Context, config: ViewConfig, emitter: ViewEmitter) {
         val scope = CoroutineScope(Dispatchers.IO)
+        val valueSize = config.textSize * 0.6f
+        val unitSize = config.textSize * 0.25f
 
         val job = scope.launch {
             TymewearData.tidalVolume.collect { tv ->
@@ -51,6 +53,8 @@ class TidalVolumeDataType(extension: String) : DataTypeImpl(extension, "tv") {
 
                 val displayValue = if (tv > 0) String.format("%.2f", tv) else "--"
                 remoteViews.setTextViewText(R.id.text_tv_value, displayValue)
+                remoteViews.setFloat(R.id.text_tv_value, "setTextSize", valueSize)
+                remoteViews.setFloat(R.id.text_tv_unit, "setTextSize", unitSize)
 
                 emitter.updateView(remoteViews)
             }
