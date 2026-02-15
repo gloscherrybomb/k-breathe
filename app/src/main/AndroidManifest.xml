@@ -56,7 +56,7 @@
 
         <meta-data
             android:name="io.hammerhead.karooext.MANIFEST_URL"
-            android:value="https://github.com/tymewear/TymewearKaroo/releases/latest/download/manifest.json" />
+            android:value="https://github.com/gloscherrybomb/k-breathe/releases/latest/download/manifest.json" />
     </application>
 
 </manifest>
