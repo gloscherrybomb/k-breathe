@@ -1,6 +1,7 @@
 package com.tymewear.karoo
 
 import io.hammerhead.karooext.KarooSystemService
+import io.hammerhead.karooext.models.KarooEvent
 import io.hammerhead.karooext.models.OnStreamState
 import io.hammerhead.karooext.models.StreamState
 import kotlinx.coroutines.channels.awaitClose
@@ -20,6 +21,23 @@ fun KarooSystemService.streamDataFlow(dataTypeId: String): Flow<StreamState> = c
         },
         onComplete = { close() },
         onEvent = { event -> trySend(event.state) },
+    )
+    awaitClose {
+        removeConsumer(consumerId)
+    }
+}
+
+/**
+ * Wraps KarooSystemService.addConsumer as a Flow for any KarooEvent type.
+ * Used for RideState to get state transition events.
+ */
+inline fun <reified T : KarooEvent> KarooSystemService.consumerFlow(): Flow<T> = callbackFlow {
+    val consumerId = addConsumer<T>(
+        onError = { error ->
+            Timber.e("consumerFlow error: $error")
+        },
+        onComplete = { close() },
+        onEvent = { event -> trySend(event) },
     )
     awaitClose {
         removeConsumer(consumerId)

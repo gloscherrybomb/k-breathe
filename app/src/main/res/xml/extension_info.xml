@@ -3,7 +3,8 @@
     displayName="@string/extension_name"
     icon="@drawable/ic_breathing"
     id="tymewear"
-    scansDevices="true">
+    scansDevices="true"
+    fitFile="true">
 
     <DataType
         typeId="ve"

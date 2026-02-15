@@ -17,9 +17,8 @@ import io.hammerhead.karooext.models.WriteToSessionMesg
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
@@ -119,6 +118,7 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
     }
 
     override fun startFit(emitter: Emitter<FitEffect>) {
+        Timber.d("startFit called")
         TymewearData.resetZoneTimes()
 
         val prefs = applicationContext.getSharedPreferences("tymewear_prefs", MODE_PRIVATE)
@@ -127,64 +127,58 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
         val vt2 = prefs.getFloat("vt2_threshold", 111f).toDouble()
         val vo2max = prefs.getFloat("vo2max_threshold", 180f).toDouble()
 
+        // Use ELAPSED_TIME stream (ticks ~1Hz) combined with RideState
+        // so we emit a FIT record every second while recording.
+        // RideState alone only fires on state transitions.
         val job = CoroutineScope(Dispatchers.IO).launch {
-            rideStateFlow().collect { rideState ->
-                when (rideState) {
-                    is RideState.Recording -> {
-                        val br = TymewearData.breathRate.value
-                        val tv = TymewearData.tidalVolume.value
-                        val ve = TymewearData.minuteVolume.value
-                        val ie = TymewearData.ieRatio.value
-                        val mi = TymewearData.mobilizationIndex.value
-                        val brr = TymewearData.percentBrr.value
-                        val zone = Protocol.veZone(ve, endurance, vt1, vt2, vo2max)
+            karooSystem.streamDataFlow(DataType.Type.ELAPSED_TIME)
+                .mapNotNull { (it as? StreamState.Streaming)?.dataPoint?.singleValue }
+                .combine(karooSystem.consumerFlow<RideState>()) { _, rideState -> rideState }
+                .collect { rideState ->
+                    when (rideState) {
+                        is RideState.Recording -> {
+                            val br = TymewearData.breathRate.value
+                            val tv = TymewearData.tidalVolume.value
+                            val ve = TymewearData.minuteVolume.value
+                            val ie = TymewearData.ieRatio.value
+                            val mi = TymewearData.mobilizationIndex.value
+                            val brr = TymewearData.percentBrr.value
+                            val zone = Protocol.veZone(ve, endurance, vt1, vt2, vo2max)
 
-                        // Track zone time (shared state for live display + FIT)
-                        TymewearData.incrementZoneTime(zone)
+                            Timber.d("FIT record: BR=%.1f TV=%.3f VE=%.1f zone=%d MI=%.1f", br, tv, ve, zone, mi)
 
-                        // Write per-second record fields
-                        emitter.onNext(
-                            WriteToRecordMesg(
-                                listOf(
-                                    FieldValue(Protocol.FIT_FIELD_BREATH_RATE, br),
-                                    FieldValue(Protocol.FIT_FIELD_TIDAL_VOLUME, tv),
-                                    FieldValue(Protocol.FIT_FIELD_MINUTE_VOLUME, ve),
-                                    FieldValue(Protocol.FIT_FIELD_IE_RATIO, ie),
-                                    FieldValue(Protocol.FIT_FIELD_VE_ZONE, zone.toDouble()),
-                                    FieldValue(Protocol.FIT_FIELD_MOBILIZATION_INDEX, mi),
-                                    FieldValue(Protocol.FIT_FIELD_PERCENT_BRR, brr),
+                            // Track zone time (shared state for live display + FIT)
+                            TymewearData.incrementZoneTime(zone)
+
+                            // Write per-second record fields
+                            emitter.onNext(
+                                WriteToRecordMesg(
+                                    listOf(
+                                        FieldValue(Protocol.FIT_FIELD_BREATH_RATE, br),
+                                        FieldValue(Protocol.FIT_FIELD_TIDAL_VOLUME, tv),
+                                        FieldValue(Protocol.FIT_FIELD_MINUTE_VOLUME, ve),
+                                        FieldValue(Protocol.FIT_FIELD_IE_RATIO, ie),
+                                        FieldValue(Protocol.FIT_FIELD_VE_ZONE, zone.toDouble()),
+                                        FieldValue(Protocol.FIT_FIELD_MOBILIZATION_INDEX, mi),
+                                        FieldValue(Protocol.FIT_FIELD_PERCENT_BRR, brr),
+                                    ),
                                 ),
-                            ),
-                        )
-                    }
+                            )
+                        }
 
-                    is RideState.Paused -> {
-                        writeSessionSummary(emitter)
-                    }
+                        is RideState.Paused -> {
+                            writeSessionSummary(emitter)
+                        }
 
-                    is RideState.Idle -> {}
+                        is RideState.Idle -> {}
+                    }
                 }
-            }
         }
 
         emitter.setCancellable {
             // Write final session summary before stopping
             writeSessionSummary(emitter)
             job.cancel()
-        }
-    }
-
-    /**
-     * Wrap KarooSystemService.addConsumer as a Flow for RideState events.
-     */
-    private fun rideStateFlow(): Flow<RideState> = callbackFlow {
-        val consumerId = karooSystem.addConsumer<RideState>(
-            onError = { error -> Timber.e("RideState consumer error: $error") },
-            onComplete = { close() },
-            onEvent = { rideState -> trySend(rideState) },
-        )
-        awaitClose {
-            karooSystem.removeConsumer(consumerId)
         }
     }
 
