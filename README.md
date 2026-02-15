@@ -21,8 +21,8 @@ I really like coffee, so if this enhances your life, please buy me one :)
 | **VE Graph** | Rolling VE graph with ventilation zone background bands |
 | **BR** | Breathing rate (breaths/min) |
 | **TV** | Tidal volume per breath (L) |
-| **MI %** | Mobilization Index — ratio of breathing reserve to heart rate reserve |
-| **MI Batt** | Mobilization Index as a battery gauge visualization |
+| **MI %** | Mobilization Index — ratio of breathing reserve to heart rate reserve. 100% = fully mobilized (limit) |
+| **MI Batt** | Mobilization Index as a battery gauge — shows remaining reserve, 0% = empty |
 | **VE Zones** | Time-in-zone bar chart (5 zones, matching Karoo's built-in HR/Power zone style) |
 
 ## Ventilation Zones
