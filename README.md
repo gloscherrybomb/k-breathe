@@ -63,14 +63,15 @@ Session summary includes time and percentage spent in each VE zone. FIT files ar
 ### Option 1: Companion App (recommended)
 
 1. On your phone, open the [latest release](https://github.com/gloscherrybomb/k-breathe/releases) in your browser
-2. Long-press the `app-release.apk` link and share it with the **Hammerhead Companion** app
+2. Long-press the `k-breathe.apk` link and share it with the **Hammerhead Companion** app
 3. The Karoo will show an install prompt — tap **Install**
-4. Future updates can be installed from the app details page on the Karoo
+4. Open the K-Breathe app once to grant Bluetooth permissions
+5. Future updates can be installed from the app details page on the Karoo
 
 ### Option 2: ADB
 
 ```bash
-adb install -r app-release.apk
+adb install -r k-breathe.apk
 adb shell pm grant com.tymewear.karoo android.permission.BLUETOOTH_SCAN
 adb shell pm grant com.tymewear.karoo android.permission.BLUETOOTH_CONNECT
 adb shell pm grant com.tymewear.karoo android.permission.ACCESS_FINE_LOCATION
@@ -78,10 +79,10 @@ adb shell pm grant com.tymewear.karoo android.permission.ACCESS_FINE_LOCATION
 
 ### Pair the Sensor
 
-1. Go to **Sensors** on the Karoo
-2. The VitalPro strap should appear as `TYME-XXXX`
-3. Pair the sensor
-4. Add K-Breathe data fields to your ride pages
+1. On the Karoo, go to **Profiles** > **Data Pages** > **Add Data Field**
+2. Select any K-Breathe field (e.g. VE, BR) from the **Extensions** list
+3. The Karoo will prompt you to pair the sensor — the VitalPro strap appears as `TYME-XXXX`
+4. **Important:** Add the sensor from the Extensions list, not the Bluetooth settings
 
 ## Building from Source
 
@@ -91,7 +92,7 @@ Requires Java 21 and Android SDK.
 ./gradlew assembleRelease
 ```
 
-The APK is output to `app/build/outputs/apk/release/app-release.apk`.
+The APK is output to `app/build/outputs/apk/release/k-breathe.apk`.
 
 ### Dependencies
 
