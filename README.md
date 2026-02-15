@@ -55,9 +55,15 @@ Session summary includes time and percentage spent in each VE zone. FIT files ar
 
 - Karoo 3 cycling computer
 - Tymewear VitalPro breathing sensor
-- ADB access to the Karoo
 
-### Install
+### Option 1: Companion App (recommended)
+
+1. On your phone, open the [latest release](https://github.com/gloscherrybomb/k-breathe/releases) in your browser
+2. Long-press the `app-release.apk` link and share it with the **Hammerhead Companion** app
+3. The Karoo will show an install prompt — tap **Install**
+4. Future updates can be installed from the app details page on the Karoo
+
+### Option 2: ADB
 
 ```bash
 adb install -r app-release.apk
