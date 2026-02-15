@@ -18,13 +18,16 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
  * MI Percentage display — large percentage text with color-coded background.
  */
+@OptIn(FlowPreview::class)
 class MobilizationIndexDataType(extension: String) : DataTypeImpl(extension, "mi") {
 
     override fun startStream(emitter: Emitter<StreamState>) {
@@ -53,7 +56,7 @@ class MobilizationIndexDataType(extension: String) : DataTypeImpl(extension, "mi
                 TymewearData.mobilizationIndex,
                 TymewearData.heartRate,
                 TymewearData.breathRate,
-            ) { mi, hr, br -> Triple(mi, hr, br) }.collect { (mi, hr, br) ->
+            ) { mi, hr, br -> Triple(mi, hr, br) }.sample(1000L).collect { (mi, hr, br) ->
                 val hasHr = hr > 0.0
                 val hasBr = br > 0.0
                 val hrr = TymewearData.percentHrr.value
@@ -111,11 +114,11 @@ class MobilizationIndexDataType(extension: String) : DataTypeImpl(extension, "mi
  * MI Battery display — battery gauge showing remaining breathing reserve.
  * Uses Canvas→Bitmap→ImageView pattern (same as VeGraphDataType).
  */
+@OptIn(FlowPreview::class)
 class MiBatteryDataType(extension: String) : DataTypeImpl(extension, "mi_bat") {
 
     companion object {
-        fun renderBattery(mi: Double, hasData: Boolean): Bitmap {
-            val bitmap = Bitmap.createBitmap(Constants.MI_BATTERY_WIDTH, Constants.MI_BATTERY_HEIGHT, Bitmap.Config.ARGB_8888)
+        fun renderBattery(bitmap: Bitmap, mi: Double, hasData: Boolean) {
             val canvas = Canvas(bitmap)
             canvas.drawColor(Color.BLACK)
 
@@ -169,8 +172,6 @@ class MiBatteryDataType(extension: String) : DataTypeImpl(extension, "mi_bat") {
                 }
                 canvas.drawRoundRect(RectF(15f, 15f, 255f, 135f), 8f, 8f, emptyPaint)
             }
-
-            return bitmap
         }
     }
 
@@ -193,12 +194,13 @@ class MiBatteryDataType(extension: String) : DataTypeImpl(extension, "mi_bat") {
 
     override fun startView(context: Context, config: ViewConfig, emitter: ViewEmitter) {
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
+        val bitmap = Bitmap.createBitmap(Constants.MI_BATTERY_WIDTH, Constants.MI_BATTERY_HEIGHT, Bitmap.Config.ARGB_8888)
         scope.launch {
             combine(
                 TymewearData.mobilizationIndex,
                 TymewearData.heartRate,
                 TymewearData.breathRate,
-            ) { mi, hr, br -> Triple(mi, hr, br) }.collect { (mi, hr, br) ->
+            ) { mi, hr, br -> Triple(mi, hr, br) }.sample(1000L).collect { (mi, hr, br) ->
                 val hasHr = hr > 0.0
                 val hasBr = br > 0.0
                 val hrr = TymewearData.percentHrr.value
@@ -226,13 +228,16 @@ class MiBatteryDataType(extension: String) : DataTypeImpl(extension, "mi_bat") {
                     }
                 }
 
-                val bitmap = renderBattery(mi, hasData)
+                renderBattery(bitmap, mi, hasData)
                 rv.setImageViewBitmap(R.id.mi_battery_image, bitmap)
                 rv.setTextViewText(R.id.text_mi_battery_value, displayValue)
 
                 emitter.updateView(rv)
             }
         }
-        emitter.setCancellable { scope.cancel() }
+        emitter.setCancellable {
+            scope.cancel()
+            bitmap.recycle()
+        }
     }
 }

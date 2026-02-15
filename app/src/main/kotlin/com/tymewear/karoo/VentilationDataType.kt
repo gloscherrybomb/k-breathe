@@ -16,6 +16,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
 import java.util.LinkedList
 
@@ -24,6 +26,7 @@ import java.util.LinkedList
  * and color-coded background based on ventilation zones.
  * Tap to cycle smoothing: Instant -> 15s -> 30s.
  */
+@OptIn(FlowPreview::class)
 class VentilationDataType(extension: String) : DataTypeImpl(extension, "ve") {
 
     // 30-second rolling buffer for startStream (Karoo numeric system always gets 30s avg)
@@ -82,7 +85,7 @@ class VentilationDataType(extension: String) : DataTypeImpl(extension, "ve") {
             combine(
                 TymewearData.minuteVolume,
                 SmoothingState.mode,
-            ) { ve, mode -> ve to mode }.collect { (ve, mode) ->
+            ) { ve, mode -> ve to mode }.sample(1000L).collect { (ve, mode) ->
                 // Maintain buffer up to current mode's window size
                 synchronized(viewBuffer) {
                     viewBuffer.addLast(ve)

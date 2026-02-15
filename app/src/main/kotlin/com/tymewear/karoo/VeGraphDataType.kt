@@ -21,6 +21,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
 import java.util.LinkedList
 
@@ -29,6 +31,7 @@ import java.util.LinkedList
  * with ventilation zone colors as horizontal background bands.
  * Tap to cycle smoothing window: 15s / 30s / 60s.
  */
+@OptIn(FlowPreview::class)
 class VeGraphDataType(extension: String) : DataTypeImpl(extension, "ve_graph") {
 
     companion object {
@@ -58,6 +61,7 @@ class VeGraphDataType(extension: String) : DataTypeImpl(extension, "ve_graph") {
     override fun startView(context: Context, config: ViewConfig, emitter: ViewEmitter) {
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
         val rawHistory = LinkedList<Double>()
+        val bitmap = Bitmap.createBitmap(Constants.VE_GRAPH_WIDTH, Constants.VE_GRAPH_HEIGHT, Bitmap.Config.ARGB_8888)
 
         val tapIntent = PendingIntent.getBroadcast(
             context,
@@ -70,7 +74,7 @@ class VeGraphDataType(extension: String) : DataTypeImpl(extension, "ve_graph") {
             combine(
                 TymewearData.minuteVolume,
                 GraphSmoothingState.mode,
-            ) { ve, mode -> ve to mode }.collect { (ve, mode) ->
+            ) { ve, mode -> ve to mode }.sample(1000L).collect { (ve, mode) ->
                 synchronized(rawHistory) {
                     rawHistory.addLast(ve)
                     while (rawHistory.size > MAX_POINTS) {
@@ -79,14 +83,12 @@ class VeGraphDataType(extension: String) : DataTypeImpl(extension, "ve_graph") {
                 }
 
                 val raw = synchronized(rawHistory) { rawHistory.toList() }
-                // Apply rolling average smoothing
                 val smoothed = smooth(raw, mode.windowSize)
-                val bitmap = renderGraph(smoothed)
+                renderGraph(bitmap, smoothed)
 
                 val remoteViews = RemoteViews(context.packageName, R.layout.view_ve_graph)
                 remoteViews.setImageViewBitmap(R.id.ve_graph_image, bitmap)
 
-                // Current value overlay with smoothing mode
                 val displayValue = if (ve > 0) String.format("%.1f %s", ve, mode.label) else "--"
                 remoteViews.setTextViewText(R.id.ve_graph_value, displayValue)
 
@@ -96,7 +98,10 @@ class VeGraphDataType(extension: String) : DataTypeImpl(extension, "ve_graph") {
             }
         }
 
-        emitter.setCancellable { scope.cancel() }
+        emitter.setCancellable {
+            scope.cancel()
+            bitmap.recycle()
+        }
     }
 
     /**
@@ -112,10 +117,9 @@ class VeGraphDataType(extension: String) : DataTypeImpl(extension, "ve_graph") {
         }
     }
 
-    private fun renderGraph(points: List<Double>): Bitmap {
-        val w = Constants.VE_GRAPH_WIDTH
-        val h = Constants.VE_GRAPH_HEIGHT
-        val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+    private fun renderGraph(bitmap: Bitmap, points: List<Double>) {
+        val w = bitmap.width
+        val h = bitmap.height
         val canvas = Canvas(bitmap)
 
         canvas.drawColor(Color.BLACK)
@@ -184,7 +188,5 @@ class VeGraphDataType(extension: String) : DataTypeImpl(extension, "ve_graph") {
             val lastY = h - (points.last() / yMax * h).toFloat()
             canvas.drawCircle(lastX, lastY, 4f, dotPaint)
         }
-
-        return bitmap
     }
 }

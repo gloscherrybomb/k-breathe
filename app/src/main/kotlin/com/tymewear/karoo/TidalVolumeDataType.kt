@@ -13,6 +13,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
 
 /**
@@ -20,6 +22,7 @@ import kotlinx.coroutines.launch
  * Stream emits mL for Karoo numeric display (300-1500 range).
  * Graphical view shows liters with 2 decimal places (e.g. "0.85 L").
  */
+@OptIn(FlowPreview::class)
 class TidalVolumeDataType(extension: String) : DataTypeImpl(extension, "tv") {
 
     override fun startStream(emitter: Emitter<StreamState>) {
@@ -47,7 +50,7 @@ class TidalVolumeDataType(extension: String) : DataTypeImpl(extension, "tv") {
         val unitSize = config.textSize * 0.25f
 
         scope.launch {
-            TymewearData.tidalVolume.collect { tv ->
+            TymewearData.tidalVolume.sample(1000L).collect { tv ->
                 val remoteViews = RemoteViews(context.packageName, R.layout.view_tidal_volume)
 
                 val displayValue = if (tv > 0) String.format("%.2f", tv) else "--"

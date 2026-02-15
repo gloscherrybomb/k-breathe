@@ -13,12 +13,15 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
  * Graphical data type showing breathing rate (breaths/min) from the VitalPro sensor.
  */
+@OptIn(FlowPreview::class)
 class BreathingRateDataType(extension: String) : DataTypeImpl(extension, "br") {
 
     override fun startStream(emitter: Emitter<StreamState>) {
@@ -45,7 +48,7 @@ class BreathingRateDataType(extension: String) : DataTypeImpl(extension, "br") {
         val unitSize = config.textSize * 0.25f
 
         scope.launch {
-            TymewearData.breathRate.collect { br ->
+            TymewearData.breathRate.sample(1000L).collect { br ->
                 val remoteViews = RemoteViews(context.packageName, R.layout.view_breathing_rate)
 
                 val displayValue = if (br > 0) br.roundToInt().toString() else "--"

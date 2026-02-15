@@ -47,6 +47,7 @@ class TimeInZonesDataType(extension: String) : DataTypeImpl(extension, "ve_zones
 
     override fun startView(context: Context, config: ViewConfig, emitter: ViewEmitter) {
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
+        val bitmap = Bitmap.createBitmap(Constants.ZONES_BITMAP_WIDTH, Constants.ZONES_BITMAP_HEIGHT, Bitmap.Config.ARGB_8888)
         scope.launch {
             // Poll at 1Hz — use shared zone times from recording if active,
             // otherwise track locally from live VE zone
@@ -73,23 +74,25 @@ class TimeInZonesDataType(extension: String) : DataTypeImpl(extension, "ve_zones
                     )
                 }
 
-                val bitmap = renderBars(zt)
+                renderBars(bitmap, zt)
                 val remoteViews = RemoteViews(context.packageName, R.layout.view_time_in_zones)
                 remoteViews.setImageViewBitmap(R.id.zones_image, bitmap)
                 emitter.updateView(remoteViews)
                 delay(1000)
             }
         }
-        emitter.setCancellable { scope.cancel() }
+        emitter.setCancellable {
+            scope.cancel()
+            bitmap.recycle()
+        }
     }
 
-    private fun renderBars(zoneTimes: ZoneTimes): Bitmap {
-        val bitmap = Bitmap.createBitmap(Constants.ZONES_BITMAP_WIDTH, Constants.ZONES_BITMAP_HEIGHT, Bitmap.Config.ARGB_8888)
+    private fun renderBars(bitmap: Bitmap, zoneTimes: ZoneTimes) {
         val canvas = Canvas(bitmap)
         canvas.drawColor(Color.BLACK)
 
-        val usableWidth = Constants.ZONES_BITMAP_WIDTH - 2 * PADDING
-        val usableHeight = Constants.ZONES_BITMAP_HEIGHT - 2 * PADDING
+        val usableWidth = bitmap.width - 2 * PADDING
+        val usableHeight = bitmap.height - 2 * PADDING
         val barWidth = usableWidth / NUM_ZONES
         val total = zoneTimes.total
 
@@ -100,13 +103,11 @@ class TimeInZonesDataType(extension: String) : DataTypeImpl(extension, "ve_zones
             val scaled = if (total > 0) (time.toFloat() / total) * usableHeight else 0f
             val barHeight = maxOf(scaled, MIN_BAR_HEIGHT)
             val x = PADDING + (zone - 1) * barWidth
-            val top = Constants.ZONES_BITMAP_HEIGHT - PADDING - barHeight
-            val bottom = Constants.ZONES_BITMAP_HEIGHT - PADDING
+            val top = bitmap.height - PADDING - barHeight
+            val bottom = bitmap.height - PADDING
 
             paint.color = Constants.zoneStyle(zone).second
             canvas.drawRect(x, top, x + barWidth, bottom, paint)
         }
-
-        return bitmap
     }
 }
