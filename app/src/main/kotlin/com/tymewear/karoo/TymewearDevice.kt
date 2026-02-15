@@ -120,13 +120,15 @@ class TymewearDevice(
                                     Protocol.PKT_BREATH -> {
                                         val data = Protocol.parseNotification(event.bytes)
                                         if (data != null) {
-                                            Timber.d(
-                                                "Breath: BR=%.1f bpm, TV_raw=%d (%.3f L), VE=%.1f L/min, " +
-                                                    "IE=%.2f, inhale=%d cs, exhale=%d cs, E=%d",
-                                                data.breathRate, data.tvRaw, data.tidalVolume,
-                                                data.minuteVolume, data.ieRatio,
-                                                data.inhaleDurationCs, data.exhaleDurationCs, data.fieldE,
-                                            )
+                                            if (BuildConfig.DEBUG) {
+                                                Timber.d(
+                                                    "Breath: BR=%.1f bpm, TV_raw=%d (%.3f L), VE=%.1f L/min, " +
+                                                        "IE=%.2f, inhale=%d cs, exhale=%d cs, E=%d",
+                                                    data.breathRate, data.tvRaw, data.tidalVolume,
+                                                    data.minuteVolume, data.ieRatio,
+                                                    data.inhaleDurationCs, data.exhaleDurationCs, data.fieldE,
+                                                )
+                                            }
                                             TymewearData.update(data)
                                             emitDataPoints(emitter, data)
                                         }
@@ -138,29 +140,35 @@ class TymewearDevice(
                                         // Raw ADC peak data paired with breath packet — ignore for now
                                     }
                                     else -> {
-                                        Timber.d(
-                                            "Unknown pkt type 0x%02x: %d bytes, hex=%s",
-                                            pktType, event.bytes.size,
-                                            event.bytes.joinToString("") { "%02x".format(it) },
-                                        )
+                                        if (BuildConfig.DEBUG) {
+                                            Timber.d(
+                                                "Unknown pkt type 0x%02x: %d bytes, hex=%s",
+                                                pktType, event.bytes.size,
+                                                event.bytes.joinToString("") { "%02x".format(it) },
+                                            )
+                                        }
                                     }
                                 }
                             }
                             Protocol.BREATHING_DATA_CHAR_UUID -> {
-                                Timber.d(
-                                    "Char 0001 data: ${event.bytes.size} bytes, " +
-                                        "hex=${event.bytes.joinToString("") { "%02x".format(it) }}",
-                                )
+                                if (BuildConfig.DEBUG) {
+                                    Timber.d(
+                                        "Char 0001 data: ${event.bytes.size} bytes, " +
+                                            "hex=${event.bytes.joinToString("") { "%02x".format(it) }}",
+                                    )
+                                }
                             }
                             Protocol.SENSOR_ID_CHAR_UUID -> {
                                 val sensorId = String(event.bytes, Charsets.UTF_8).trim()
                                 Timber.d("Sensor ID: $sensorId")
                             }
                             else -> {
-                                Timber.d(
-                                    "Unknown char ${event.characteristicUuid}: " +
-                                        "${event.bytes.joinToString("") { "%02x".format(it) }}",
-                                )
+                                if (BuildConfig.DEBUG) {
+                                    Timber.d(
+                                        "Unknown char ${event.characteristicUuid}: " +
+                                            "${event.bytes.joinToString("") { "%02x".format(it) }}",
+                                    )
+                                }
                             }
                         }
                     }

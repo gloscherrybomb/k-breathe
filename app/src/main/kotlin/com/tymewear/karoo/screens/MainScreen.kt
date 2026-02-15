@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.tymewear.karoo.Constants
 import com.tymewear.karoo.TymewearData
 
 data class PrefsData(
@@ -218,14 +219,14 @@ fun MainScreen(
                 onSave(
                     PrefsData(
                         sensorId = sensorId,
-                        endurance = endurance.toFloatOrNull() ?: 69f,
-                        vt1 = vt1.toFloatOrNull() ?: 83f,
-                        vt2 = vt2.toFloatOrNull() ?: 111f,
-                        vo2max = vo2max.toFloatOrNull() ?: 180f,
-                        restingBr = restingBr.toFloatOrNull() ?: 12f,
-                        maxBr = maxBr.toFloatOrNull() ?: 55f,
-                        maxHr = maxHr.toFloatOrNull() ?: 190f,
-                        restingHr = restingHr.toFloatOrNull() ?: 60f,
+                        endurance = endurance.toFloatOrNull() ?: Constants.DEFAULT_ENDURANCE,
+                        vt1 = vt1.toFloatOrNull() ?: Constants.DEFAULT_VT1,
+                        vt2 = vt2.toFloatOrNull() ?: Constants.DEFAULT_VT2,
+                        vo2max = vo2max.toFloatOrNull() ?: Constants.DEFAULT_VO2MAX,
+                        restingBr = restingBr.toFloatOrNull() ?: Constants.DEFAULT_RESTING_BR,
+                        maxBr = maxBr.toFloatOrNull() ?: Constants.DEFAULT_MAX_BR,
+                        maxHr = maxHr.toFloatOrNull() ?: Constants.DEFAULT_MAX_HR,
+                        restingHr = restingHr.toFloatOrNull() ?: Constants.DEFAULT_RESTING_HR,
                     ),
                 )
                 saved = true

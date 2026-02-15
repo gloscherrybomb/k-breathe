@@ -64,17 +64,17 @@ class MobilizationIndexDataType(extension: String) : DataTypeImpl(extension, "mi
                     !hasBr -> {
                         displayValue = "--"
                         unitLabel = ""
-                        bgColor = Color.parseColor("#424242")
+                        bgColor = Constants.NO_DATA_COLOR
                     }
                     !hasHr -> {
                         displayValue = "no HR"
                         unitLabel = ""
-                        bgColor = Color.parseColor("#424242")
+                        bgColor = Constants.NO_DATA_COLOR
                     }
                     hrr < 10.0 -> {
                         displayValue = "idle"
                         unitLabel = ""
-                        bgColor = Color.parseColor("#424242")
+                        bgColor = Constants.NO_DATA_COLOR
                     }
                     else -> {
                         val rounded = mi.roundToInt()
@@ -112,11 +112,8 @@ class MobilizationIndexDataType(extension: String) : DataTypeImpl(extension, "mi
 class MiBatteryDataType(extension: String) : DataTypeImpl(extension, "mi_bat") {
 
     companion object {
-        private const val BMP_W = 300
-        private const val BMP_H = 150
-
         fun renderBattery(mi: Double, hasData: Boolean): Bitmap {
-            val bitmap = Bitmap.createBitmap(BMP_W, BMP_H, Bitmap.Config.ARGB_8888)
+            val bitmap = Bitmap.createBitmap(Constants.MI_BATTERY_WIDTH, Constants.MI_BATTERY_HEIGHT, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
             canvas.drawColor(Color.BLACK)
 

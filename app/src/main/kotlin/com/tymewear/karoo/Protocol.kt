@@ -4,6 +4,7 @@ import io.hammerhead.karooext.models.DeveloperField
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.UUID
+import timber.log.Timber
 
 /**
  * VitalPro BLE protocol constants and data parsing.
@@ -156,6 +157,18 @@ object Protocol {
             val tvLiters = c * TV_CALIBRATION
             val minuteVolume = breathRate * tvLiters
 
+            // Range validation
+            if (breathRate > Constants.MAX_BREATHING_RATE ||
+                tvLiters > Constants.MAX_TIDAL_VOLUME_L ||
+                minuteVolume > Constants.MAX_MINUTE_VENTILATION
+            ) {
+                Timber.w(
+                    "Out of range: BR=%.1f, TV=%.3f L, VE=%.1f L/min",
+                    breathRate, tvLiters, minuteVolume,
+                )
+                return null
+            }
+
             BreathingData(
                 breathRate = breathRate,
                 tidalVolume = tvLiters,
@@ -168,6 +181,7 @@ object Protocol {
                 fieldE = e,
             )
         } catch (ex: Exception) {
+            Timber.w(ex, "Failed to parse breath packet")
             null
         }
     }

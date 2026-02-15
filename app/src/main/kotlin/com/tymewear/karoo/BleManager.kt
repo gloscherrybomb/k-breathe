@@ -68,7 +68,7 @@ class BleManager(private val context: Context) {
                 val address = result.device.address
 
                 // Log all named devices for debugging
-                if (!seen.contains(address)) {
+                if (BuildConfig.DEBUG && !seen.contains(address)) {
                     Timber.d("BLE device seen: $name ($address)")
                 }
 
@@ -108,7 +108,7 @@ class BleManager(private val context: Context) {
 
         var gatt: BluetoothGatt? = null
         var reconnectAttempt = 0
-        val maxReconnectAttempts = 10
+        val maxReconnectAttempts = Constants.BLE_MAX_RECONNECT_ATTEMPTS
         val handler = Handler(Looper.getMainLooper())
         var closed = false
 
@@ -136,7 +136,7 @@ class BleManager(private val context: Context) {
                             // Attempt reconnection with backoff
                             if (!closed && reconnectAttempt < maxReconnectAttempts) {
                                 reconnectAttempt++
-                                val delayMs = (2000L * reconnectAttempt).coerceAtMost(30000L)
+                                val delayMs = (Constants.BLE_BASE_RECONNECT_DELAY_MS * reconnectAttempt).coerceAtMost(Constants.BLE_MAX_RECONNECT_DELAY_MS)
                                 Timber.d("Scheduling reconnect attempt $reconnectAttempt in ${delayMs}ms")
                                 handler.postDelayed({
                                     attemptConnect(true)
@@ -218,11 +218,13 @@ class BleManager(private val context: Context) {
     private fun subscribeToAllCharacteristics(gatt: BluetoothGatt) {
         val service = gatt.getService(Protocol.VITALPRO_SERVICE_UUID)
         if (service == null) {
-            Timber.e("VitalPro service not found. Available services:")
-            gatt.services.forEach { s ->
-                Timber.d("  Service: ${s.uuid}")
-                s.characteristics.forEach { c ->
-                    Timber.d("    Char: ${c.uuid} props=${c.properties}")
+            Timber.e("VitalPro service not found")
+            if (BuildConfig.DEBUG) {
+                gatt.services.forEach { s ->
+                    Timber.d("  Service: ${s.uuid}")
+                    s.characteristics.forEach { c ->
+                        Timber.d("    Char: ${c.uuid} props=${c.properties}")
+                    }
                 }
             }
             return

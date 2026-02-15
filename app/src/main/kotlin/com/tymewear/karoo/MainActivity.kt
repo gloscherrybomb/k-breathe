@@ -33,14 +33,14 @@ class MainActivity : ComponentActivity() {
                         val p = getSharedPreferences("tymewear_prefs", MODE_PRIVATE)
                         PrefsData(
                             sensorId = p.getString("sensor_id", "") ?: "",
-                            endurance = p.getFloat("endurance_threshold", 69f),
-                            vt1 = p.getFloat("vt1_threshold", 83f),
-                            vt2 = p.getFloat("vt2_threshold", 111f),
-                            vo2max = p.getFloat("vo2max_threshold", 180f),
-                            restingBr = p.getFloat("resting_br", 12f),
-                            maxBr = p.getFloat("max_br", 55f),
-                            maxHr = p.getFloat("max_hr", 190f),
-                            restingHr = p.getFloat("resting_hr", 60f),
+                            endurance = p.getFloat("endurance_threshold", Constants.DEFAULT_ENDURANCE),
+                            vt1 = p.getFloat("vt1_threshold", Constants.DEFAULT_VT1),
+                            vt2 = p.getFloat("vt2_threshold", Constants.DEFAULT_VT2),
+                            vo2max = p.getFloat("vo2max_threshold", Constants.DEFAULT_VO2MAX),
+                            restingBr = p.getFloat("resting_br", Constants.DEFAULT_RESTING_BR),
+                            maxBr = p.getFloat("max_br", Constants.DEFAULT_MAX_BR),
+                            maxHr = p.getFloat("max_hr", Constants.DEFAULT_MAX_HR),
+                            restingHr = p.getFloat("resting_hr", Constants.DEFAULT_RESTING_HR),
                         )
                     },
                 )

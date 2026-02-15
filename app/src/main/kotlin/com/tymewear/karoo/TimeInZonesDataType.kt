@@ -21,8 +21,6 @@ import kotlinx.coroutines.launch
 class TimeInZonesDataType(extension: String) : DataTypeImpl(extension, "ve_zones") {
 
     companion object {
-        private const val BITMAP_WIDTH = 400
-        private const val BITMAP_HEIGHT = 200
         private const val PADDING = 4f
         private const val NUM_ZONES = 5
         private const val MIN_BAR_HEIGHT = 4f
@@ -84,12 +82,12 @@ class TimeInZonesDataType(extension: String) : DataTypeImpl(extension, "ve_zones
     }
 
     private fun renderBars(zoneTimes: ZoneTimes): Bitmap {
-        val bitmap = Bitmap.createBitmap(BITMAP_WIDTH, BITMAP_HEIGHT, Bitmap.Config.ARGB_8888)
+        val bitmap = Bitmap.createBitmap(Constants.ZONES_BITMAP_WIDTH, Constants.ZONES_BITMAP_HEIGHT, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.drawColor(Color.BLACK)
 
-        val usableWidth = BITMAP_WIDTH - 2 * PADDING
-        val usableHeight = BITMAP_HEIGHT - 2 * PADDING
+        val usableWidth = Constants.ZONES_BITMAP_WIDTH - 2 * PADDING
+        val usableHeight = Constants.ZONES_BITMAP_HEIGHT - 2 * PADDING
         val barWidth = usableWidth / NUM_ZONES
         val total = zoneTimes.total
 
@@ -100,10 +98,10 @@ class TimeInZonesDataType(extension: String) : DataTypeImpl(extension, "ve_zones
             val scaled = if (total > 0) (time.toFloat() / total) * usableHeight else 0f
             val barHeight = maxOf(scaled, MIN_BAR_HEIGHT)
             val x = PADDING + (zone - 1) * barWidth
-            val top = BITMAP_HEIGHT - PADDING - barHeight
-            val bottom = BITMAP_HEIGHT - PADDING
+            val top = Constants.ZONES_BITMAP_HEIGHT - PADDING - barHeight
+            val bottom = Constants.ZONES_BITMAP_HEIGHT - PADDING
 
-            paint.color = VentilationDataType.zoneStyle(zone).second
+            paint.color = Constants.zoneStyle(zone).second
             canvas.drawRect(x, top, x + barWidth, bottom, paint)
         }
 

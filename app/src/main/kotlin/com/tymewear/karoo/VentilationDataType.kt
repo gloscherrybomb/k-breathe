@@ -3,7 +3,6 @@ package com.tymewear.karoo
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
 import android.widget.RemoteViews
 import io.hammerhead.karooext.extension.DataTypeImpl
 import io.hammerhead.karooext.internal.Emitter
@@ -105,7 +104,7 @@ class VentilationDataType(extension: String) : DataTypeImpl(extension, "ve") {
                 remoteViews.setFloat(R.id.text_unit, "setTextSize", unitSize)
 
                 // Set zone background color
-                val (_, bgColor) = zoneStyle(zone)
+                val (_, bgColor) = Constants.zoneStyle(zone)
                 remoteViews.setInt(R.id.container, "setBackgroundColor", bgColor)
 
                 // Unit label shows smoothing mode
@@ -124,14 +123,6 @@ class VentilationDataType(extension: String) : DataTypeImpl(extension, "ve") {
     }
 
     companion object {
-        // Tymewear 5-zone model
-        fun zoneStyle(zone: Int): Pair<String, Int> = when (zone) {
-            1 -> "Z1" to Color.parseColor("#546E7A")   // Blue Grey
-            2 -> "Z2" to Color.parseColor("#0277BD")   // Blue
-            3 -> "Z3" to Color.parseColor("#2E7D32")   // Green
-            4 -> "Z4" to Color.parseColor("#F57F17")   // Amber
-            5 -> "Z5" to Color.parseColor("#C62828")   // Red
-            else -> "" to Color.parseColor("#424242")   // Dark Grey
-        }
+        fun zoneStyle(zone: Int): Pair<String, Int> = Constants.zoneStyle(zone)
     }
 }

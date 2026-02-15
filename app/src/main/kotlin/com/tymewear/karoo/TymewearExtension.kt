@@ -66,7 +66,7 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
                         when (state) {
                             is StreamState.Streaming -> {
                                 val hr = state.dataPoint.singleValue ?: return@collect
-                                Timber.d("HR stream: %.0f bpm", hr)
+                                if (BuildConfig.DEBUG) Timber.d("HR stream: %.0f bpm", hr)
                                 TymewearData.updateHr(hr)
                             }
                             else -> {
@@ -122,10 +122,10 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
         TymewearData.resetZoneTimes()
 
         val prefs = applicationContext.getSharedPreferences("tymewear_prefs", MODE_PRIVATE)
-        val endurance = prefs.getFloat("endurance_threshold", 69f).toDouble()
-        val vt1 = prefs.getFloat("vt1_threshold", 83f).toDouble()
-        val vt2 = prefs.getFloat("vt2_threshold", 111f).toDouble()
-        val vo2max = prefs.getFloat("vo2max_threshold", 180f).toDouble()
+        val endurance = prefs.getFloat("endurance_threshold", Constants.DEFAULT_ENDURANCE).toDouble()
+        val vt1 = prefs.getFloat("vt1_threshold", Constants.DEFAULT_VT1).toDouble()
+        val vt2 = prefs.getFloat("vt2_threshold", Constants.DEFAULT_VT2).toDouble()
+        val vo2max = prefs.getFloat("vo2max_threshold", Constants.DEFAULT_VO2MAX).toDouble()
 
         // Use ELAPSED_TIME stream (ticks ~1Hz) combined with RideState
         // so we emit a FIT record every second while recording.
@@ -145,7 +145,7 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
                             val brr = TymewearData.percentBrr.value
                             val zone = Protocol.veZone(ve, endurance, vt1, vt2, vo2max)
 
-                            Timber.d("FIT record: BR=%.1f TV=%.3f VE=%.1f zone=%d MI=%.1f", br, tv, ve, zone, mi)
+                            if (BuildConfig.DEBUG) Timber.d("FIT record: BR=%.1f TV=%.3f VE=%.1f zone=%d MI=%.1f", br, tv, ve, zone, mi)
 
                             // Track zone time (shared state for live display + FIT)
                             TymewearData.incrementZoneTime(zone)

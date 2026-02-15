@@ -62,23 +62,23 @@ object TymewearData {
     }
 
     // Zone thresholds (loaded from prefs)
-    var enduranceThreshold = 69.0
+    var enduranceThreshold = Constants.DEFAULT_ENDURANCE.toDouble()
         private set
-    var vt1Threshold = 83.0
+    var vt1Threshold = Constants.DEFAULT_VT1.toDouble()
         private set
-    var vt2Threshold = 111.0
+    var vt2Threshold = Constants.DEFAULT_VT2.toDouble()
         private set
-    var vo2maxThreshold = 180.0
+    var vo2maxThreshold = Constants.DEFAULT_VO2MAX.toDouble()
         private set
 
     // MI parameters (loaded from prefs)
-    var restingBr = 12.0
+    var restingBr = Constants.DEFAULT_RESTING_BR.toDouble()
         private set
-    var maxBr = 55.0
+    var maxBr = Constants.DEFAULT_MAX_BR.toDouble()
         private set
-    var maxHr = 190.0
+    var maxHr = Constants.DEFAULT_MAX_HR.toDouble()
         private set
-    var restingHr = 60.0
+    var restingHr = Constants.DEFAULT_RESTING_HR.toDouble()
         private set
 
     // HR/MI state
@@ -99,14 +99,14 @@ object TymewearData {
      */
     fun loadThresholds(context: Context) {
         val prefs = context.getSharedPreferences("tymewear_prefs", Context.MODE_PRIVATE)
-        enduranceThreshold = prefs.getFloat("endurance_threshold", 69f).toDouble()
-        vt1Threshold = prefs.getFloat("vt1_threshold", 83f).toDouble()
-        vt2Threshold = prefs.getFloat("vt2_threshold", 111f).toDouble()
-        vo2maxThreshold = prefs.getFloat("vo2max_threshold", 180f).toDouble()
-        restingBr = prefs.getFloat("resting_br", 12f).toDouble()
-        maxBr = prefs.getFloat("max_br", 55f).toDouble()
-        maxHr = prefs.getFloat("max_hr", 190f).toDouble()
-        restingHr = prefs.getFloat("resting_hr", 60f).toDouble()
+        enduranceThreshold = prefs.getFloat("endurance_threshold", Constants.DEFAULT_ENDURANCE).toDouble()
+        vt1Threshold = prefs.getFloat("vt1_threshold", Constants.DEFAULT_VT1).toDouble()
+        vt2Threshold = prefs.getFloat("vt2_threshold", Constants.DEFAULT_VT2).toDouble()
+        vo2maxThreshold = prefs.getFloat("vo2max_threshold", Constants.DEFAULT_VO2MAX).toDouble()
+        restingBr = prefs.getFloat("resting_br", Constants.DEFAULT_RESTING_BR).toDouble()
+        maxBr = prefs.getFloat("max_br", Constants.DEFAULT_MAX_BR).toDouble()
+        maxHr = prefs.getFloat("max_hr", Constants.DEFAULT_MAX_HR).toDouble()
+        restingHr = prefs.getFloat("resting_hr", Constants.DEFAULT_RESTING_HR).toDouble()
     }
 
     fun update(data: Protocol.BreathingData) {

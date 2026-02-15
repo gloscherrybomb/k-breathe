@@ -47,10 +47,6 @@
         </service>
 
         <receiver
-            android:name=".MiDisplayReceiver"
-            android:exported="false" />
-
-        <receiver
             android:name=".SmoothingReceiver"
             android:exported="false" />
 

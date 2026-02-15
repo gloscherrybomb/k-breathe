@@ -31,17 +31,6 @@ class VeGraphDataType(extension: String) : DataTypeImpl(extension, "ve_graph") {
 
     companion object {
         private const val MAX_POINTS = 90  // ~3-5 min of data at 1 breath every 2-4s
-        private const val GRAPH_WIDTH = 400
-        private const val GRAPH_HEIGHT = 200
-
-        // Zone background colors (semi-transparent)
-        private val ZONE_COLORS = intArrayOf(
-            Color.argb(60, 84, 110, 122),   // Z1 Blue Grey
-            Color.argb(60, 2, 119, 189),     // Z2 Blue
-            Color.argb(60, 46, 125, 50),     // Z3 Green
-            Color.argb(60, 245, 127, 23),    // Z4 Amber
-            Color.argb(60, 198, 40, 40),     // Z5 Red
-        )
 
         private val LINE_COLOR = Color.WHITE
         private val GRID_COLOR = Color.argb(40, 255, 255, 255)
@@ -122,8 +111,8 @@ class VeGraphDataType(extension: String) : DataTypeImpl(extension, "ve_graph") {
     }
 
     private fun renderGraph(points: List<Double>): Bitmap {
-        val w = GRAPH_WIDTH
-        val h = GRAPH_HEIGHT
+        val w = Constants.VE_GRAPH_WIDTH
+        val h = Constants.VE_GRAPH_HEIGHT
         val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
@@ -144,7 +133,7 @@ class VeGraphDataType(extension: String) : DataTypeImpl(extension, "ve_graph") {
         for (i in 0 until 5) {
             val yBottom = h - (thresholds[i] / yMax * h).toFloat()
             val yTop = h - (thresholds[i + 1] / yMax * h).toFloat()
-            zonePaint.color = ZONE_COLORS[i]
+            zonePaint.color = Constants.ZONE_COLORS_ALPHA[i]
             canvas.drawRect(0f, yTop.coerceAtLeast(0f), w.toFloat(), yBottom.coerceAtMost(h.toFloat()), zonePaint)
         }
 
