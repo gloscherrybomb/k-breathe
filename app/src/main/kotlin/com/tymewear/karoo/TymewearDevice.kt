@@ -91,7 +91,6 @@ class TymewearDevice(
                 when (event) {
                     is BleManager.ConnectionEvent.Connected -> {
                         emitter.onNext(OnConnectionStatus(ConnectionStatus.CONNECTED))
-                        emitter.onNext(OnBatteryStatus(BatteryStatus.GOOD))
                         emitter.onNext(
                             OnManufacturerInfo(
                                 ManufacturerInfo(
@@ -104,7 +103,18 @@ class TymewearDevice(
 
                     is BleManager.ConnectionEvent.Disconnected -> {
                         emitter.onNext(OnConnectionStatus(ConnectionStatus.SEARCHING))
-                        // TODO: Implement reconnection logic
+                        TymewearData.setDisconnected()
+                    }
+
+                    is BleManager.ConnectionEvent.BatteryLevel -> {
+                        val status = when {
+                            event.percent > 60 -> BatteryStatus.GOOD
+                            event.percent > 20 -> BatteryStatus.OK
+                            event.percent > 5  -> BatteryStatus.LOW
+                            else -> BatteryStatus.CRITICAL
+                        }
+                        emitter.onNext(OnBatteryStatus(status))
+                        TymewearData.updateBattery(event.percent)
                     }
 
                     is BleManager.ConnectionEvent.Subscribed -> {

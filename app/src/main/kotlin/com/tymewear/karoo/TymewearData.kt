@@ -40,6 +40,11 @@ object TymewearData {
     private val _isConnected = MutableStateFlow(false)
     val isConnected: StateFlow<Boolean> = _isConnected.asStateFlow()
 
+    private val _batteryPercent = MutableStateFlow(-1)
+    val batteryPercent: StateFlow<Int> = _batteryPercent.asStateFlow()
+
+    fun updateBattery(percent: Int) { _batteryPercent.value = percent }
+
     // Zone time tracking (live, for TimeInZonesDataType display)
     private val _zoneTimes = MutableStateFlow(ZoneTimes())
     val zoneTimes: StateFlow<ZoneTimes> = _zoneTimes.asStateFlow()
@@ -160,5 +165,6 @@ object TymewearData {
 
     fun setDisconnected() {
         _isConnected.value = false
+        _batteryPercent.value = -1
     }
 }

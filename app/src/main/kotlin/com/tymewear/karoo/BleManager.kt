@@ -19,6 +19,8 @@ import android.os.Handler
 import android.os.Looper
 import java.util.UUID
 import java.util.LinkedList
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -106,18 +108,18 @@ class BleManager(private val context: Context) {
                 return@callbackFlow
             }
 
-        var gatt: BluetoothGatt? = null
+        val gatt = AtomicReference<BluetoothGatt?>(null)
         var reconnectAttempt = 0
         val maxReconnectAttempts = Constants.BLE_MAX_RECONNECT_ATTEMPTS
         val handler = Handler(Looper.getMainLooper())
-        var closed = false
+        val closed = AtomicBoolean(false)
 
         fun attemptConnect(autoConnect: Boolean) {
-            if (closed) return
+            if (closed.get()) return
             Timber.d("Connecting GATT to $address (autoConnect=$autoConnect, attempt=$reconnectAttempt)")
             // Close any existing GATT before reconnecting
-            gatt?.close()
-            gatt = device.connectGatt(context, autoConnect, object : BluetoothGattCallback() {
+            gatt.get()?.close()
+            gatt.set(device.connectGatt(context, autoConnect, object : BluetoothGattCallback() {
                 override fun onConnectionStateChange(
                     g: BluetoothGatt,
                     status: Int,
@@ -134,14 +136,14 @@ class BleManager(private val context: Context) {
                             Timber.d("GATT disconnected from $address (status=$status)")
                             trySend(ConnectionEvent.Disconnected)
                             // Attempt reconnection with backoff
-                            if (!closed && reconnectAttempt < maxReconnectAttempts) {
+                            if (!closed.get() && reconnectAttempt < maxReconnectAttempts) {
                                 reconnectAttempt++
                                 val delayMs = (Constants.BLE_BASE_RECONNECT_DELAY_MS * reconnectAttempt).coerceAtMost(Constants.BLE_MAX_RECONNECT_DELAY_MS)
                                 Timber.d("Scheduling reconnect attempt $reconnectAttempt in ${delayMs}ms")
                                 handler.postDelayed({
                                     attemptConnect(true)
                                 }, delayMs)
-                            } else if (!closed) {
+                            } else if (!closed.get()) {
                                 Timber.e("Max reconnect attempts reached for $address")
                                 close()
                             }
@@ -194,7 +196,24 @@ class BleManager(private val context: Context) {
                         subscribeNext(g)
                     }
                 }
-            }, BluetoothDevice.TRANSPORT_LE)
+
+                @Suppress("DEPRECATION")
+                @Deprecated("Deprecated in API 33")
+                override fun onCharacteristicRead(
+                    g: BluetoothGatt,
+                    characteristic: BluetoothGattCharacteristic,
+                    status: Int,
+                ) {
+                    if (status == BluetoothGatt.GATT_SUCCESS &&
+                        characteristic.uuid == Protocol.BATTERY_LEVEL_CHAR_UUID
+                    ) {
+                        @Suppress("DEPRECATION")
+                        val level = characteristic.value?.firstOrNull()?.toInt()?.and(0xFF) ?: return
+                        Timber.d("Battery level: $level%")
+                        trySend(ConnectionEvent.BatteryLevel(level))
+                    }
+                }
+            }, BluetoothDevice.TRANSPORT_LE))
         }
 
         // First connection: direct (not autoConnect) for faster initial connect
@@ -202,9 +221,9 @@ class BleManager(private val context: Context) {
 
         awaitClose {
             Timber.d("Closing GATT connection to $address")
-            closed = true
+            closed.set(true)
             handler.removeCallbacksAndMessages(null)
-            gatt?.close()
+            gatt.getAndSet(null)?.close()
         }
     }
 
@@ -279,12 +298,22 @@ class BleManager(private val context: Context) {
     }
 
     /**
-     * Write the next queued CCCD descriptor, if any.
+     * Write the next queued CCCD descriptor, or read battery level when queue is empty.
      */
     private fun subscribeNext(gatt: BluetoothGatt) {
-        val descriptor = descriptorWriteQueue.poll() ?: return
-        @Suppress("DEPRECATION")
-        gatt.writeDescriptor(descriptor)
+        val descriptor = descriptorWriteQueue.poll()
+        if (descriptor != null) {
+            @Suppress("DEPRECATION")
+            gatt.writeDescriptor(descriptor)
+        } else {
+            // All subscriptions complete — read battery level from standard Battery Service
+            val batteryService = gatt.getService(Protocol.BATTERY_SERVICE_UUID)
+            val batteryChar = batteryService?.getCharacteristic(Protocol.BATTERY_LEVEL_CHAR_UUID)
+            if (batteryChar != null) {
+                @Suppress("DEPRECATION")
+                gatt.readCharacteristic(batteryChar)
+            }
+        }
     }
 
     sealed class ConnectionEvent {
@@ -292,5 +321,6 @@ class BleManager(private val context: Context) {
         data object Disconnected : ConnectionEvent()
         data object Subscribed : ConnectionEvent()
         data class Data(val characteristicUuid: UUID, val bytes: ByteArray) : ConnectionEvent()
+        data class BatteryLevel(val percent: Int) : ConnectionEvent()
     }
 }

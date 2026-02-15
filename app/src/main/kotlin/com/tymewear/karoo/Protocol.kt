@@ -59,17 +59,22 @@ object Protocol {
     // -------------------------------------------------------------------------
 
     // Device names observed: "VitalPro R", "VitalPro BR", "VitalPro S",
-    // "vitalpro-hw8-small", "vitalpro-hw8-regular"
-    private val DEVICE_NAME_PATTERNS = listOf("vitalpro", "tymewear", "tyme")
+    // "vitalpro-hw8-small", "vitalpro-hw8-regular", "TYME-6A64"
+    private val DEVICE_NAME_PATTERNS = listOf("vitalpro", "tymewear")
+    private const val HR_SENSOR_PREFIX = "tymehr"
+    private val TYME_STRAP_REGEX = Regex("^tyme-[0-9a-f]{4}$")
 
     /**
      * Check if a BLE device name matches the VitalPro breathing sensor.
-     * Matches both "VitalPro" and "Tymewear" prefixed names.
+     * Matches breathing straps (VitalPro, Tymewear, TYME-XXXX) but
+     * excludes HR sensors (TymeHR XXXXXXX).
      */
     fun isVitalProDevice(deviceName: String?): Boolean {
         if (deviceName == null) return false
-        val lower = deviceName.lowercase()
+        val lower = deviceName.lowercase().trim()
+        if (lower.startsWith(HR_SENSOR_PREFIX)) return false
         return DEVICE_NAME_PATTERNS.any { lower.contains(it) }
+            || TYME_STRAP_REGEX.matches(lower)
     }
 
     /**
