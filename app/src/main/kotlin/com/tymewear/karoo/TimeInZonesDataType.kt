@@ -24,6 +24,7 @@ class TimeInZonesDataType(extension: String) : DataTypeImpl(extension, "ve_zones
         private const val BITMAP_HEIGHT = 200
         private const val PADDING = 4f
         private const val NUM_ZONES = 5
+        private const val MIN_BAR_HEIGHT = 4f
     }
 
     override fun startStream(emitter: Emitter<StreamState>) {
@@ -64,13 +65,14 @@ class TimeInZonesDataType(extension: String) : DataTypeImpl(extension, "ve_zones
         val usableWidth = BITMAP_WIDTH - 2 * PADDING
         val usableHeight = BITMAP_HEIGHT - 2 * PADDING
         val barWidth = usableWidth / NUM_ZONES
-        val maxTime = zoneTimes.max
+        val total = zoneTimes.total
 
         val paint = Paint().apply { style = Paint.Style.FILL }
 
         for (zone in 1..NUM_ZONES) {
             val time = zoneTimes[zone]
-            val barHeight = if (maxTime > 0) (time.toFloat() / maxTime) * usableHeight else 0f
+            val scaled = if (total > 0) (time.toFloat() / total) * usableHeight else 0f
+            val barHeight = maxOf(scaled, MIN_BAR_HEIGHT)
             val x = PADDING + (zone - 1) * barWidth
             val top = BITMAP_HEIGHT - PADDING - barHeight
             val bottom = BITMAP_HEIGHT - PADDING
