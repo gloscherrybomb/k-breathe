@@ -16,7 +16,8 @@ import io.hammerhead.karooext.models.WriteToRecordMesg
 import io.hammerhead.karooext.models.WriteToSessionMesg
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
@@ -26,8 +27,7 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
 
     lateinit var karooSystem: KarooSystemService
     private lateinit var bleManager: BleManager
-    private val scope = CoroutineScope(Dispatchers.IO)
-    private var hrrJob: Job? = null
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
 
     override val types by lazy {
         listOf(
@@ -61,7 +61,7 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
 
                 // Subscribe to heart rate for Mobilization Index
                 // Use raw HR and compute %HRR ourselves (PERCENT_HRR may only work during rides)
-                hrrJob = scope.launch {
+                scope.launch {
                     karooSystem.streamDataFlow(DataType.Type.HEART_RATE).collect { state ->
                         when (state) {
                             is StreamState.Streaming -> {
@@ -86,7 +86,8 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
         val prefs = applicationContext.getSharedPreferences("tymewear_prefs", MODE_PRIVATE)
         val sensorId = prefs.getString("sensor_id", null)
 
-        val job = CoroutineScope(Dispatchers.IO).launch {
+        val scanScope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
+        scanScope.launch {
             bleManager.scan(sensorId).collect { scannedDevice ->
                 val device = TymewearDevice(
                     extension = extension,
@@ -101,7 +102,7 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
 
         emitter.setCancellable {
             Timber.d("Scan cancelled")
-            job.cancel()
+            scanScope.cancel()
         }
     }
 
@@ -130,7 +131,8 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
         // Use ELAPSED_TIME stream (ticks ~1Hz) combined with RideState
         // so we emit a FIT record every second while recording.
         // RideState alone only fires on state transitions.
-        val job = CoroutineScope(Dispatchers.IO).launch {
+        val fitScope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
+        fitScope.launch {
             karooSystem.streamDataFlow(DataType.Type.ELAPSED_TIME)
                 .mapNotNull { (it as? StreamState.Streaming)?.dataPoint?.singleValue }
                 .combine(karooSystem.consumerFlow<RideState>()) { _, rideState -> rideState }
@@ -178,7 +180,7 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
         emitter.setCancellable {
             // Write final session summary before stopping
             writeSessionSummary(emitter)
-            job.cancel()
+            fitScope.cancel()
         }
     }
 
@@ -206,7 +208,7 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
 
     override fun onDestroy() {
         Timber.d("TymewearExtension destroyed")
-        hrrJob?.cancel()
+        scope.cancel()
         TymewearData.setDisconnected()
         karooSystem.dispatch(ReleaseBluetooth(extension))
         karooSystem.disconnect()

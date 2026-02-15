@@ -11,6 +11,8 @@ import io.hammerhead.karooext.models.StreamState
 import io.hammerhead.karooext.models.ViewConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 /**
@@ -21,9 +23,8 @@ import kotlinx.coroutines.launch
 class TidalVolumeDataType(extension: String) : DataTypeImpl(extension, "tv") {
 
     override fun startStream(emitter: Emitter<StreamState>) {
-        val scope = CoroutineScope(Dispatchers.IO)
-
-        val job = scope.launch {
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
+        scope.launch {
             TymewearData.tidalVolume.collect { tv ->
                 // Emit in mL for Karoo numeric (integer) display
                 emitter.onNext(
@@ -37,17 +38,15 @@ class TidalVolumeDataType(extension: String) : DataTypeImpl(extension, "tv") {
             }
         }
 
-        emitter.setCancellable {
-            job.cancel()
-        }
+        emitter.setCancellable { scope.cancel() }
     }
 
     override fun startView(context: Context, config: ViewConfig, emitter: ViewEmitter) {
-        val scope = CoroutineScope(Dispatchers.IO)
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
         val valueSize = config.textSize * 0.6f
         val unitSize = config.textSize * 0.25f
 
-        val job = scope.launch {
+        scope.launch {
             TymewearData.tidalVolume.collect { tv ->
                 val remoteViews = RemoteViews(context.packageName, R.layout.view_tidal_volume)
 
@@ -60,8 +59,6 @@ class TidalVolumeDataType(extension: String) : DataTypeImpl(extension, "tv") {
             }
         }
 
-        emitter.setCancellable {
-            job.cancel()
-        }
+        emitter.setCancellable { scope.cancel() }
     }
 }

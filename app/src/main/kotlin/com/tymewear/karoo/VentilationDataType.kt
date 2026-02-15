@@ -13,6 +13,8 @@ import io.hammerhead.karooext.models.StreamState
 import io.hammerhead.karooext.models.ViewConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import java.util.LinkedList
@@ -29,9 +31,9 @@ class VentilationDataType(extension: String) : DataTypeImpl(extension, "ve") {
     private val streamBufferSize = 30
 
     override fun startStream(emitter: Emitter<StreamState>) {
-        val scope = CoroutineScope(Dispatchers.IO)
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
 
-        val job = scope.launch {
+        scope.launch {
             TymewearData.minuteVolume.collect { ve ->
                 synchronized(streamBuffer) {
                     streamBuffer.addLast(ve)
@@ -57,13 +59,13 @@ class VentilationDataType(extension: String) : DataTypeImpl(extension, "ve") {
         }
 
         emitter.setCancellable {
-            job.cancel()
+            scope.cancel()
             synchronized(streamBuffer) { streamBuffer.clear() }
         }
     }
 
     override fun startView(context: Context, config: ViewConfig, emitter: ViewEmitter) {
-        val scope = CoroutineScope(Dispatchers.IO)
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
         val viewBuffer = LinkedList<Double>()
 
         val tapIntent = PendingIntent.getBroadcast(
@@ -76,7 +78,7 @@ class VentilationDataType(extension: String) : DataTypeImpl(extension, "ve") {
         val valueSize = config.textSize * 0.6f
         val unitSize = config.textSize * 0.25f
 
-        val job = scope.launch {
+        scope.launch {
             combine(
                 TymewearData.minuteVolume,
                 SmoothingState.mode,
@@ -117,9 +119,7 @@ class VentilationDataType(extension: String) : DataTypeImpl(extension, "ve") {
             }
         }
 
-        emitter.setCancellable {
-            job.cancel()
-        }
+        emitter.setCancellable { scope.cancel() }
     }
 
     companion object {

@@ -14,7 +14,7 @@ import io.hammerhead.karooext.models.OnDataPoint
 import io.hammerhead.karooext.models.OnManufacturerInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -81,7 +81,7 @@ class TymewearDevice(
      * Connect to the BLE device and start emitting DeviceEvents.
      */
     fun connect(emitter: Emitter<DeviceEvent>) {
-        val connectScope = CoroutineScope(Dispatchers.IO)
+        val connectScope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
         scope = connectScope
 
         connectScope.launch {

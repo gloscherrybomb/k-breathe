@@ -15,6 +15,8 @@ import io.hammerhead.karooext.models.StreamState
 import io.hammerhead.karooext.models.ViewConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -27,8 +29,8 @@ class TimeInZonesDataType(extension: String) : DataTypeImpl(extension, "ve_zones
     }
 
     override fun startStream(emitter: Emitter<StreamState>) {
-        val scope = CoroutineScope(Dispatchers.IO)
-        val job = scope.launch {
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
+        scope.launch {
             TymewearData.zoneTimes.collect { zt ->
                 emitter.onNext(
                     StreamState.Streaming(
@@ -40,12 +42,12 @@ class TimeInZonesDataType(extension: String) : DataTypeImpl(extension, "ve_zones
                 )
             }
         }
-        emitter.setCancellable { job.cancel() }
+        emitter.setCancellable { scope.cancel() }
     }
 
     override fun startView(context: Context, config: ViewConfig, emitter: ViewEmitter) {
-        val scope = CoroutineScope(Dispatchers.IO)
-        val job = scope.launch {
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
+        scope.launch {
             // Poll at 1Hz — use shared zone times from recording if active,
             // otherwise track locally from live VE zone
             val localZones = longArrayOf(0, 0, 0, 0, 0)
@@ -78,7 +80,7 @@ class TimeInZonesDataType(extension: String) : DataTypeImpl(extension, "ve_zones
                 delay(1000)
             }
         }
-        emitter.setCancellable { job.cancel() }
+        emitter.setCancellable { scope.cancel() }
     }
 
     private fun renderBars(zoneTimes: ZoneTimes): Bitmap {

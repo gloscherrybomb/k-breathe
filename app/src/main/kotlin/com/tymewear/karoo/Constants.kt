@@ -1,6 +1,8 @@
 package com.tymewear.karoo
 
 import android.graphics.Color
+import kotlinx.coroutines.CoroutineExceptionHandler
+import timber.log.Timber
 
 /**
  * Single source of truth for constants used across multiple files.
@@ -85,4 +87,12 @@ object Constants {
     const val MAX_BREATHING_RATE = 120.0
     const val MAX_TIDAL_VOLUME_L = 5.0
     const val MAX_MINUTE_VENTILATION = 250.0
+
+    // -------------------------------------------------------------------------
+    // Coroutine error handler
+    // -------------------------------------------------------------------------
+
+    val coroutineExceptionHandler = CoroutineExceptionHandler { _, t ->
+        Timber.e(t, "Uncaught coroutine exception")
+    }
 }
