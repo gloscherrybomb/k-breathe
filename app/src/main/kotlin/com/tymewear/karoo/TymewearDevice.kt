@@ -90,6 +90,7 @@ class TymewearDevice(
             bleManager.connect(uid).collect { event ->
                 when (event) {
                     is BleManager.ConnectionEvent.Connected -> {
+                        Protocol.resetState()
                         emitter.onNext(OnConnectionStatus(ConnectionStatus.CONNECTED))
                         emitter.onNext(
                             OnManufacturerInfo(
@@ -132,11 +133,12 @@ class TymewearDevice(
                                         if (data != null) {
                                             if (BuildConfig.DEBUG) {
                                                 Timber.d(
-                                                    "Breath: BR=%.1f bpm, TV_raw=%d (%.3f L), VE=%.1f L/min, " +
-                                                        "IE=%.2f, inhale=%d cs, exhale=%d cs, E=%d",
+                                                    "Breath: BR=%.1f bpm, TV_raw=%d (%.3f), VE=%.1f, " +
+                                                        "IE=%.2f, A=%d, B=%d, E=%d, ts=%d",
                                                     data.breathRate, data.tvRaw, data.tidalVolume,
                                                     data.minuteVolume, data.ieRatio,
-                                                    data.inhaleDurationCs, data.exhaleDurationCs, data.fieldE,
+                                                    data.inhaleDurationCs, data.exhaleDurationCs,
+                                                    data.fieldE, data.timestamp40ms,
                                                 )
                                             }
                                             TymewearData.update(data)

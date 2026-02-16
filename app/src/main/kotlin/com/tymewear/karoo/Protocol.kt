@@ -108,34 +108,56 @@ object Protocol {
      * Parsed breathing data from a type 0x01 BLE notification.
      */
     data class BreathingData(
-        val breathRate: Double,      // breaths per minute (computed from inhale+exhale duration)
-        val tidalVolume: Double,     // raw chest expansion delta (ADC units, needs calibration)
-        val minuteVolume: Double,    // estimated VE (BR × TV_raw × calibration)
+        val breathRate: Double,      // breaths per minute (from inter-packet timestamp delta)
+        val tidalVolume: Double,     // tidal volume (tv_raw × calibration factor)
+        val minuteVolume: Double,    // minute ventilation VE = BR × TV
         val ieRatio: Double,         // inhale/exhale ratio (dimensionless)
-        val veZone: Int,             // ventilation zone (0=none, 1-3)
-        val inhaleDurationCs: Int,   // inhale duration in centiseconds (10ms units)
-        val exhaleDurationCs: Int,   // exhale duration in centiseconds (10ms units)
+        val veZone: Int,             // ventilation zone (0=none, 1-5)
+        val inhaleDurationCs: Int,   // inhale duration in raw packet units
+        val exhaleDurationCs: Int,   // exhale duration in raw packet units
         val tvRaw: Int,              // raw tidal volume (ADC delta)
         val fieldE: Int,             // unknown field E (for debugging/calibration)
+        val timestamp40ms: Long,     // packet timestamp in 40ms ticks
     )
 
     /**
-     * TV calibration factor: converts raw ADC delta to liters.
-     * Initial estimate based on typical resting values:
-     *   avg ADC delta ~100, typical resting TV ~0.5 L → factor = 0.005
-     * TODO: Validate by comparing with Tymewear app display values.
+     * TV calibration factor: converts raw ADC delta to approximate volume units.
+     * Validated by cross-referencing Karoo FIT output against Tymewear FIT files
+     * (9886 records across two rides): VE = BR × tv_raw × ~0.01, consistently.
+     * tv_raw values are confirmed identical between apps (ratio 1.002).
      */
-    private const val TV_CALIBRATION = 0.005
+    private const val TV_CALIBRATION = 0.01
+
+    /** Seconds per timestamp tick (packet timestamp field). */
+    private const val TICK_SECONDS = 0.040
+
+    /** Minimum plausible BR — below this the timestamp delta likely spans a dropped packet. */
+    private const val MIN_BREATH_RATE = 4.0
+
+    /** Previous packet timestamp for inter-packet BR calculation. */
+    private var prevTimestamp40ms: Long = -1
+
+    /**
+     * Reset parser state (e.g. on disconnect / new session).
+     */
+    fun resetState() {
+        prevTimestamp40ms = -1
+    }
 
     /**
      * Parse a notification from characteristic 40B50004 into breathing data.
      * Only type 0x01 packets produce BreathingData; other types return null.
      *
+     * BR is computed from the timestamp delta between consecutive 0x01 packets,
+     * which captures the full breath period including inter-breath pauses.
+     * This matches the Tymewear app's BR values (validated via FIT comparison).
+     * Falls back to inhale+exhale duration for the first packet only.
+     *
      * Type 0x01 packet layout (17 bytes, uint16 LE):
      *   [0]      type = 0x01
      *   [1..4]   timestamp (uint32 LE, 40ms ticks)
-     *   [5..6]   A = inhale duration (centiseconds)
-     *   [7..8]   B = exhale duration (centiseconds)
+     *   [5..6]   A = inhale duration (raw units)
+     *   [7..8]   B = exhale duration (raw units)
      *   [9..10]  C = tidal volume (raw ADC delta)
      *   [11..12] D = C repeated
      *   [13..14] E = unknown metric
@@ -149,26 +171,50 @@ object Protocol {
 
         return try {
             val buf = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-            val a = buf.getShort(5).toInt() and 0xFFFF  // inhale_cs
-            val b = buf.getShort(7).toInt() and 0xFFFF  // exhale_cs
+            val timestamp = buf.getInt(1).toLong() and 0xFFFFFFFFL  // uint32
+            val a = buf.getShort(5).toInt() and 0xFFFF  // inhale duration
+            val b = buf.getShort(7).toInt() and 0xFFFF  // exhale duration
             val c = buf.getShort(9).toInt() and 0xFFFF  // tv_raw
             val e = buf.getShort(13).toInt() and 0xFFFF // unknown
 
-            val totalCs = a + b
-            if (totalCs <= 0) return null
+            if (a == 0 && b == 0) return null
 
-            val breathRate = 6000.0 / totalCs  // BR in bpm
             val ieRatio = if (b > 0) a.toDouble() / b.toDouble() else 0.0
+
+            // Compute BR from inter-packet timestamp delta (full breath period).
+            // Falls back to inhale+exhale sum for the first packet in a session.
+            val prev = prevTimestamp40ms
+            prevTimestamp40ms = timestamp
+
+            val breathRate: Double
+            if (prev >= 0 && timestamp > prev) {
+                val deltaTicks = timestamp - prev
+                val deltaSeconds = deltaTicks * TICK_SECONDS
+                val tsBr = 60.0 / deltaSeconds
+                if (tsBr >= MIN_BREATH_RATE) {
+                    breathRate = tsBr
+                } else {
+                    // Delta too large — likely a dropped packet; use inhale+exhale fallback
+                    val totalRaw = a + b
+                    breathRate = if (totalRaw > 0) 6000.0 / totalRaw else return null
+                    Timber.d("Timestamp BR %.1f too low (delta=%d ticks), using fallback %.1f",
+                        tsBr, deltaTicks, breathRate)
+                }
+            } else {
+                // First packet — use inhale+exhale as initial estimate
+                val totalRaw = a + b
+                breathRate = if (totalRaw > 0) 6000.0 / totalRaw else return null
+            }
+
             val tvLiters = c * TV_CALIBRATION
             val minuteVolume = breathRate * tvLiters
 
             // Range validation
             if (breathRate > Constants.MAX_BREATHING_RATE ||
-                tvLiters > Constants.MAX_TIDAL_VOLUME_L ||
                 minuteVolume > Constants.MAX_MINUTE_VENTILATION
             ) {
                 Timber.w(
-                    "Out of range: BR=%.1f, TV=%.3f L, VE=%.1f L/min",
+                    "Out of range: BR=%.1f, TV=%.3f, VE=%.1f L/min",
                     breathRate, tvLiters, minuteVolume,
                 )
                 return null
@@ -184,6 +230,7 @@ object Protocol {
                 exhaleDurationCs = b,
                 tvRaw = c,
                 fieldE = e,
+                timestamp40ms = timestamp,
             )
         } catch (ex: Exception) {
             Timber.w(ex, "Failed to parse breath packet")

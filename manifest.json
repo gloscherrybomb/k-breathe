@@ -3,9 +3,9 @@
   "packageName": "com.tymewear.karoo",
   "iconUrl": "https://github.com/gloscherrybomb/k-breathe/releases/latest/download/icon.png",
   "latestApkUrl": "https://github.com/gloscherrybomb/k-breathe/releases/latest/download/k-breathe.apk",
-  "latestVersion": "0.1.0",
-  "latestVersionCode": 1,
+  "latestVersion": "0.2.0",
+  "latestVersionCode": 2,
   "developer": "gloscherrybomb",
   "description": "Displays live breathing data from the Tymewear VitalPro sensor on your Karoo. Includes VE, breathing rate, tidal volume, mobilization index, VE graph, and time-in-zones fields with FIT recording.",
-  "releaseNotes": "Initial release with 7 data fields, BLE connectivity, ventilation zones, and FIT recording."
+  "releaseNotes": "Fix breathing rate and ventilation accuracy. BR now computed from inter-breath timing instead of inhale+exhale duration. TV calibration updated to match Tymewear app values."
 }
