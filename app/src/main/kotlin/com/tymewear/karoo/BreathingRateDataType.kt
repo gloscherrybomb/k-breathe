@@ -27,7 +27,7 @@ class BreathingRateDataType(extension: String) : DataTypeImpl(extension, "br") {
     override fun startStream(emitter: Emitter<StreamState>) {
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
         scope.launch {
-            TymewearData.breathRate.collect { br ->
+            TymewearData.smoothBreathRate.collect { br ->
                 emitter.onNext(
                     StreamState.Streaming(
                         DataPoint(
@@ -48,7 +48,7 @@ class BreathingRateDataType(extension: String) : DataTypeImpl(extension, "br") {
         val unitSize = config.textSize * 0.25f
 
         scope.launch {
-            TymewearData.breathRate.sample(1000L).collect { br ->
+            TymewearData.smoothBreathRate.sample(1000L).collect { br ->
                 val remoteViews = RemoteViews(context.packageName, R.layout.view_breathing_rate)
 
                 val displayValue = if (br > 0) br.roundToInt().toString() else "--"

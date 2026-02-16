@@ -28,7 +28,7 @@ class TidalVolumeDataType(extension: String) : DataTypeImpl(extension, "tv") {
     override fun startStream(emitter: Emitter<StreamState>) {
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
         scope.launch {
-            TymewearData.tidalVolume.collect { tv ->
+            TymewearData.smoothTidalVolume.collect { tv ->
                 // Emit in mL for Karoo numeric (integer) display
                 emitter.onNext(
                     StreamState.Streaming(
@@ -50,7 +50,7 @@ class TidalVolumeDataType(extension: String) : DataTypeImpl(extension, "tv") {
         val unitSize = config.textSize * 0.25f
 
         scope.launch {
-            TymewearData.tidalVolume.sample(1000L).collect { tv ->
+            TymewearData.smoothTidalVolume.sample(1000L).collect { tv ->
                 val remoteViews = RemoteViews(context.packageName, R.layout.view_tidal_volume)
 
                 val displayValue = if (tv > 0) String.format("%.2f", tv) else "--"

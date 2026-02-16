@@ -5,6 +5,18 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import java.util.LinkedList
+
+/** Fixed-capacity rolling buffer for computing moving averages. */
+class RollingBuffer(private val capacity: Int) {
+    private val buf = LinkedList<Double>()
+    fun add(value: Double) {
+        buf.addLast(value)
+        if (buf.size > capacity) buf.removeFirst()
+    }
+    fun average(): Double = if (buf.isEmpty()) 0.0 else buf.sum() / buf.size
+    fun clear() { buf.clear() }
+}
 
 data class ZoneTimes(
     val z1: Long = 0, val z2: Long = 0, val z3: Long = 0,
@@ -30,6 +42,19 @@ object TymewearData {
 
     private val _minuteVolume = MutableStateFlow(0.0)
     val minuteVolume: StateFlow<Double> = _minuteVolume.asStateFlow()
+
+    // 8-breath rolling averages for display smoothing (~40s at rest, ~12s at hard effort)
+    private val brBuffer = RollingBuffer(8)
+    private val tvBuffer = RollingBuffer(8)
+
+    private val _smoothBreathRate = MutableStateFlow(0.0)
+    val smoothBreathRate: StateFlow<Double> = _smoothBreathRate.asStateFlow()
+
+    private val _smoothTidalVolume = MutableStateFlow(0.0)
+    val smoothTidalVolume: StateFlow<Double> = _smoothTidalVolume.asStateFlow()
+
+    private val _smoothMinuteVolume = MutableStateFlow(0.0)
+    val smoothMinuteVolume: StateFlow<Double> = _smoothMinuteVolume.asStateFlow()
 
     private val _ieRatio = MutableStateFlow(0.0)
     val ieRatio: StateFlow<Double> = _ieRatio.asStateFlow()
@@ -119,9 +144,19 @@ object TymewearData {
         _tidalVolume.value = data.tidalVolume
         _minuteVolume.value = data.minuteVolume
         _ieRatio.value = data.ieRatio
-        // Compute zone from current thresholds
+
+        // Feed rolling buffers and update smoothed values
+        brBuffer.add(data.breathRate)
+        tvBuffer.add(data.tidalVolume)
+        val smoothBr = brBuffer.average()
+        val smoothTv = tvBuffer.average()
+        _smoothBreathRate.value = smoothBr
+        _smoothTidalVolume.value = smoothTv
+        _smoothMinuteVolume.value = smoothBr * smoothTv
+
+        // Compute zone from smoothed VE for stable zone transitions
         _veZone.value = Protocol.veZone(
-            data.minuteVolume,
+            _smoothMinuteVolume.value,
             enduranceThreshold,
             vt1Threshold,
             vt2Threshold,
@@ -148,7 +183,7 @@ object TymewearData {
     }
 
     private fun recomputeMi() {
-        val br = _breathRate.value
+        val br = _smoothBreathRate.value
         val hr = _heartRate.value
         val hrr = _percentHrr.value
         val brRange = maxBr - restingBr
@@ -166,5 +201,7 @@ object TymewearData {
     fun setDisconnected() {
         _isConnected.value = false
         _batteryPercent.value = -1
+        brBuffer.clear()
+        tvBuffer.clear()
     }
 }
