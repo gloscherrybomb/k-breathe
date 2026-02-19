@@ -91,15 +91,23 @@ class TimeInZonesDataType(extension: String) : DataTypeImpl(extension, "ve_zones
         val canvas = Canvas(bitmap)
         canvas.drawColor(Color.BLACK)
 
+        val labelSpace = 30f
         val usableWidth = bitmap.width - 2 * PADDING
-        val usableHeight = bitmap.height - 2 * PADDING
+        val usableHeight = bitmap.height - 2 * PADDING - labelSpace
         val barWidth = usableWidth / NUM_ZONES
         val total = zoneTimes.total
 
         val paint = Paint().apply { style = Paint.Style.FILL }
+        val textPaint = Paint().apply {
+            color = Color.WHITE
+            textSize = 22f
+            textAlign = Paint.Align.CENTER
+            isAntiAlias = true
+        }
 
         for (zone in 1..NUM_ZONES) {
             val time = zoneTimes[zone]
+            val pct = if (total > 0) (time.toFloat() / total * 100f) else 0f
             val scaled = if (total > 0) (time.toFloat() / total) * usableHeight else 0f
             val barHeight = maxOf(scaled, MIN_BAR_HEIGHT)
             val x = PADDING + (zone - 1) * barWidth
@@ -108,6 +116,15 @@ class TimeInZonesDataType(extension: String) : DataTypeImpl(extension, "ve_zones
 
             paint.color = Constants.zoneStyle(zone).second
             canvas.drawRect(x, top, x + barWidth, bottom, paint)
+
+            // Draw percentage label above bar, pre-stretched vertically
+            // to compensate for fitXY squashing on wide display fields
+            val label = "${pct.toInt()}%"
+            val centerX = x + barWidth / 2
+            canvas.save()
+            canvas.scale(1f, 1.7f, centerX, top - 4f)
+            canvas.drawText(label, centerX, top - 4f, textPaint)
+            canvas.restore()
         }
     }
 }
