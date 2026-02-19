@@ -3,9 +3,9 @@
   "packageName": "com.tymewear.karoo",
   "iconUrl": "https://github.com/gloscherrybomb/k-breathe/releases/latest/download/icon.png",
   "latestApkUrl": "https://github.com/gloscherrybomb/k-breathe/releases/latest/download/k-breathe.apk",
-  "latestVersion": "0.3.1",
-  "latestVersionCode": 4,
+  "latestVersion": "0.3.2",
+  "latestVersionCode": 5,
   "developer": "gloscherrybomb",
   "description": "Displays live breathing data from the Tymewear VitalPro sensor on your Karoo. Includes VE, breathing rate, tidal volume, mobilization index, VE graph, and time-in-zones fields with FIT recording.",
-  "releaseNotes": "Improve VE graph readability: brighter zone colours and threshold labels (ENDUR, VT1, VT2)."
+  "releaseNotes": "Add percentage labels to Time in Zones bar chart."
 }
