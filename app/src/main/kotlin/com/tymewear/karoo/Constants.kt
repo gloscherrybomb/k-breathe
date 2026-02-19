@@ -24,11 +24,11 @@ object Constants {
 
     /** Semi-transparent zone colors for graph background bands. */
     val ZONE_COLORS_ALPHA = intArrayOf(
-        Color.argb(60, 84, 110, 122),   // Z1 Blue Grey
-        Color.argb(60, 2, 119, 189),     // Z2 Blue
-        Color.argb(60, 46, 125, 50),     // Z3 Green
-        Color.argb(60, 245, 127, 23),    // Z4 Amber
-        Color.argb(60, 198, 40, 40),     // Z5 Red
+        Color.argb(120, 84, 110, 122),   // Z1 Blue Grey
+        Color.argb(120, 2, 119, 189),    // Z2 Blue
+        Color.argb(120, 46, 125, 50),    // Z3 Green
+        Color.argb(120, 245, 127, 23),   // Z4 Amber
+        Color.argb(120, 198, 40, 40),    // Z5 Red
     )
 
     /** Background color when no data / no zone. */

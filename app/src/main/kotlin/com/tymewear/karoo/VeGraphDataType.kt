@@ -38,7 +38,7 @@ class VeGraphDataType(extension: String) : DataTypeImpl(extension, "ve_graph") {
         private const val MAX_POINTS = 90  // ~3-5 min of data at 1 breath every 2-4s
 
         private val LINE_COLOR = Color.WHITE
-        private val GRID_COLOR = Color.argb(40, 255, 255, 255)
+        private val GRID_COLOR = Color.argb(80, 255, 255, 255)
     }
 
     override fun startStream(emitter: Emitter<StreamState>) {
@@ -143,16 +143,32 @@ class VeGraphDataType(extension: String) : DataTypeImpl(extension, "ve_graph") {
             canvas.drawRect(0f, yTop.coerceAtLeast(0f), w.toFloat(), yBottom.coerceAtMost(h.toFloat()), zonePaint)
         }
 
-        // Draw threshold lines
+        // Draw threshold lines with labels
         val linePaint = Paint().apply {
             color = GRID_COLOR
             strokeWidth = 1f
             style = Paint.Style.STROKE
         }
-        for (threshold in doubleArrayOf(endurance, vt1, vt2, vo2max)) {
-            val y = h - (threshold / yMax * h).toFloat()
+        val labelPaint = Paint().apply {
+            color = Color.argb(180, 255, 255, 255)
+            textSize = 18f
+            isAntiAlias = true
+        }
+        val labels = arrayOf("ENDUR", "VT1", "VT2")
+        val thresholdValues = doubleArrayOf(endurance, vt1, vt2, vo2max)
+        for (i in thresholdValues.indices) {
+            val y = h - (thresholdValues[i] / yMax * h).toFloat()
             if (y in 0f..h.toFloat()) {
                 canvas.drawLine(0f, y, w.toFloat(), y, linePaint)
+                if (i < labels.size) {
+                    // Draw text with vertical scale to compensate for fitXY stretch
+                    val metrics = labelPaint.fontMetrics
+                    val textCenterOffset = -(metrics.ascent + metrics.descent) / 2f
+                    canvas.save()
+                    canvas.scale(1f, 0.5f, 0f, y)
+                    canvas.drawText(labels[i], 4f, y + textCenterOffset, labelPaint)
+                    canvas.restore()
+                }
             }
         }
 
