@@ -31,11 +31,11 @@ Five zones based on ventilation thresholds:
 
 | Zone | Name | Default VE (L/min) | Color |
 |------|------|---------------------|-------|
-| Z1 | Recovery | < 69 | Blue-grey |
-| Z2 | Endurance | 69 - 83 | Blue |
-| Z3 | Tempo (VT1) | 83 - 111 | Green |
-| Z4 | Threshold (VT2) | 111 - 180 | Yellow |
-| Z5 | VO2max | > 180 | Red |
+| Z1 | Endurance | < 83 | Teal |
+| Z2 | VT1 | 83 - 111 | Blue |
+| Z3 | VT2 | 111 - 128 | Amber |
+| Z4 | Top Z4 | 128 - 180 | Orange |
+| Z5 | VO2Max | > 180 | Red |
 
 Zone thresholds are configurable via SharedPreferences.
 

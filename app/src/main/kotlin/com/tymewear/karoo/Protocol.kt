@@ -372,13 +372,13 @@ object Protocol {
     )
 
     // -------------------------------------------------------------------------
-    // Ventilation zone thresholds (Tymewear 5-zone model, Feb 2025 update)
+    // Ventilation zone thresholds (Tymewear 5-zone model, Feb 2026 update)
     // -------------------------------------------------------------------------
     //
-    // Zone 1: Recovery      — below Endurance threshold
-    // Zone 2: Endurance     — Endurance to VT1
-    // Zone 3: Tempo         — VT1 to VT2
-    // Zone 4: Threshold     — VT2 to VO2max
+    // Zone 1: Endurance     — below VT1
+    // Zone 2: VT1           — VT1 to VT2
+    // Zone 3: VT2           — VT2 to Top Z4
+    // Zone 4: Top Z4        — Top Z4 to VO2max
     // Zone 5: VO2max+       — above VO2max
 
     /**
@@ -387,16 +387,16 @@ object Protocol {
      */
     fun veZone(
         minuteVolume: Double,
-        endurance: Double,
         vt1: Double,
         vt2: Double,
+        topZ4: Double,
         vo2max: Double,
     ): Int {
         return when {
             minuteVolume <= 0.0 -> 0
-            minuteVolume < endurance -> 1
-            minuteVolume < vt1 -> 2
-            minuteVolume < vt2 -> 3
+            minuteVolume < vt1 -> 1
+            minuteVolume < vt2 -> 2
+            minuteVolume < topZ4 -> 3
             minuteVolume < vo2max -> 4
             else -> 5
         }

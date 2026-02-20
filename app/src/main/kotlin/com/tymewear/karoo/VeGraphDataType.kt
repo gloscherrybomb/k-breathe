@@ -124,9 +124,9 @@ class VeGraphDataType(extension: String) : DataTypeImpl(extension, "ve_graph") {
 
         canvas.drawColor(Color.BLACK)
 
-        val endurance = TymewearData.enduranceThreshold
         val vt1 = TymewearData.vt1Threshold
         val vt2 = TymewearData.vt2Threshold
+        val topZ4 = TymewearData.topZ4Threshold
         val vo2max = TymewearData.vo2maxThreshold
 
         // Auto-scale Y axis
@@ -135,7 +135,7 @@ class VeGraphDataType(extension: String) : DataTypeImpl(extension, "ve_graph") {
 
         // Draw zone background bands
         val zonePaint = Paint()
-        val thresholds = doubleArrayOf(0.0, endurance, vt1, vt2, vo2max, yMax)
+        val thresholds = doubleArrayOf(0.0, vt1, vt2, topZ4, vo2max, yMax)
         for (i in 0 until 5) {
             val yBottom = h - (thresholds[i] / yMax * h).toFloat()
             val yTop = h - (thresholds[i + 1] / yMax * h).toFloat()
@@ -154,8 +154,8 @@ class VeGraphDataType(extension: String) : DataTypeImpl(extension, "ve_graph") {
             textSize = 18f
             isAntiAlias = true
         }
-        val labels = arrayOf("ENDUR", "VT1", "VT2")
-        val thresholdValues = doubleArrayOf(endurance, vt1, vt2, vo2max)
+        val labels = arrayOf("VT1", "VT2", "TZ4")
+        val thresholdValues = doubleArrayOf(vt1, vt2, topZ4, vo2max)
         for (i in thresholdValues.indices) {
             val y = h - (thresholdValues[i] / yMax * h).toFloat()
             if (y in 0f..h.toFloat()) {

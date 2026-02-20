@@ -92,11 +92,11 @@ object TymewearData {
     }
 
     // Zone thresholds (loaded from prefs)
-    var enduranceThreshold = Constants.DEFAULT_ENDURANCE.toDouble()
-        private set
     var vt1Threshold = Constants.DEFAULT_VT1.toDouble()
         private set
     var vt2Threshold = Constants.DEFAULT_VT2.toDouble()
+        private set
+    var topZ4Threshold = Constants.DEFAULT_TOP_Z4.toDouble()
         private set
     var vo2maxThreshold = Constants.DEFAULT_VO2MAX.toDouble()
         private set
@@ -129,9 +129,9 @@ object TymewearData {
      */
     fun loadThresholds(context: Context) {
         val prefs = context.getSharedPreferences("tymewear_prefs", Context.MODE_PRIVATE)
-        enduranceThreshold = prefs.getFloat("endurance_threshold", Constants.DEFAULT_ENDURANCE).toDouble()
         vt1Threshold = prefs.getFloat("vt1_threshold", Constants.DEFAULT_VT1).toDouble()
         vt2Threshold = prefs.getFloat("vt2_threshold", Constants.DEFAULT_VT2).toDouble()
+        topZ4Threshold = prefs.getFloat("topz4_threshold", Constants.DEFAULT_TOP_Z4).toDouble()
         vo2maxThreshold = prefs.getFloat("vo2max_threshold", Constants.DEFAULT_VO2MAX).toDouble()
         restingBr = prefs.getFloat("resting_br", Constants.DEFAULT_RESTING_BR).toDouble()
         maxBr = prefs.getFloat("max_br", Constants.DEFAULT_MAX_BR).toDouble()
@@ -157,9 +157,9 @@ object TymewearData {
         // Compute zone from smoothed VE for stable zone transitions
         _veZone.value = Protocol.veZone(
             _smoothMinuteVolume.value,
-            enduranceThreshold,
             vt1Threshold,
             vt2Threshold,
+            topZ4Threshold,
             vo2maxThreshold,
         )
         _isConnected.value = true

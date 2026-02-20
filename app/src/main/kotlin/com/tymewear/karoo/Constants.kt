@@ -15,20 +15,20 @@ object Constants {
 
     /** Solid zone colors for backgrounds and bar charts. */
     val ZONE_COLORS_SOLID = intArrayOf(
-        Color.parseColor("#546E7A"),   // Z1 Blue Grey
-        Color.parseColor("#0277BD"),   // Z2 Blue
-        Color.parseColor("#2E7D32"),   // Z3 Green
-        Color.parseColor("#F57F17"),   // Z4 Amber
-        Color.parseColor("#C62828"),   // Z5 Red
+        Color.parseColor("#4DB6AC"),   // Z1 Teal (Endurance)
+        Color.parseColor("#0277BD"),   // Z2 Blue (VT1)
+        Color.parseColor("#F57F17"),   // Z3 Amber (VT2)
+        Color.parseColor("#EF6C00"),   // Z4 Orange (Top Z4)
+        Color.parseColor("#C62828"),   // Z5 Red (VO2Max)
     )
 
     /** Semi-transparent zone colors for graph background bands. */
     val ZONE_COLORS_ALPHA = intArrayOf(
-        Color.argb(120, 84, 110, 122),   // Z1 Blue Grey
-        Color.argb(120, 2, 119, 189),    // Z2 Blue
-        Color.argb(120, 46, 125, 50),    // Z3 Green
-        Color.argb(120, 245, 127, 23),   // Z4 Amber
-        Color.argb(120, 198, 40, 40),    // Z5 Red
+        Color.argb(120, 77, 182, 172),   // Z1 Teal (Endurance)
+        Color.argb(120, 2, 119, 189),    // Z2 Blue (VT1)
+        Color.argb(120, 245, 127, 23),   // Z3 Amber (VT2)
+        Color.argb(120, 239, 108, 0),    // Z4 Orange (Top Z4)
+        Color.argb(120, 198, 40, 40),    // Z5 Red (VO2Max)
     )
 
     /** Background color when no data / no zone. */
@@ -47,9 +47,9 @@ object Constants {
     // Default thresholds
     // -------------------------------------------------------------------------
 
-    const val DEFAULT_ENDURANCE = 69f
     const val DEFAULT_VT1 = 83f
     const val DEFAULT_VT2 = 111f
+    const val DEFAULT_TOP_Z4 = 128f
     const val DEFAULT_VO2MAX = 180f
 
     // -------------------------------------------------------------------------

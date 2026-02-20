@@ -34,9 +34,9 @@ import com.tymewear.karoo.TymewearData
 
 data class PrefsData(
     val sensorId: String,
-    val endurance: Float,
     val vt1: Float,
     val vt2: Float,
+    val topZ4: Float,
     val vo2max: Float,
     val restingBr: Float,
     val maxBr: Float,
@@ -50,9 +50,9 @@ fun MainScreen(
     loadPrefs: () -> PrefsData,
 ) {
     var sensorId by remember { mutableStateOf("") }
-    var endurance by remember { mutableStateOf("69") }
     var vt1 by remember { mutableStateOf("83") }
     var vt2 by remember { mutableStateOf("111") }
+    var topZ4 by remember { mutableStateOf("128") }
     var vo2max by remember { mutableStateOf("180") }
     var restingBr by remember { mutableStateOf("12") }
     var maxBr by remember { mutableStateOf("55") }
@@ -65,9 +65,9 @@ fun MainScreen(
     LaunchedEffect(Unit) {
         val prefs = loadPrefs()
         sensorId = prefs.sensorId
-        endurance = prefs.endurance.toString()
         vt1 = prefs.vt1.toString()
         vt2 = prefs.vt2.toString()
+        topZ4 = prefs.topZ4.toString()
         vo2max = prefs.vo2max.toString()
         restingBr = prefs.restingBr.toString()
         maxBr = prefs.maxBr.toString()
@@ -129,23 +129,13 @@ fun MainScreen(
         )
 
         OutlinedTextField(
-            value = endurance,
-            onValueChange = { endurance = it; saved = false },
-            label = { Text("Endurance threshold (L/min)") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            supportingText = { Text("Z1 Recovery below, Z2 Endurance above") },
-        )
-
-        OutlinedTextField(
             value = vt1,
             onValueChange = { vt1 = it; saved = false },
             label = { Text("VT1 threshold (L/min)") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            supportingText = { Text("Z3 Tempo above") },
+            supportingText = { Text("Z1 Endurance below, Z2 VT1 above") },
         )
 
         OutlinedTextField(
@@ -155,7 +145,17 @@ fun MainScreen(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            supportingText = { Text("Z4 Threshold above") },
+            supportingText = { Text("Z3 VT2 above") },
+        )
+
+        OutlinedTextField(
+            value = topZ4,
+            onValueChange = { topZ4 = it; saved = false },
+            label = { Text("Top Z4 threshold (L/min)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            supportingText = { Text("Z4 Top Z4 above") },
         )
 
         OutlinedTextField(
@@ -165,7 +165,7 @@ fun MainScreen(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            supportingText = { Text("Z5 VO2max above") },
+            supportingText = { Text("Z5 VO2Max above") },
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -226,9 +226,9 @@ fun MainScreen(
 
         Button(
             onClick = {
-                val eVal = endurance.toFloatOrNull()
                 val v1Val = vt1.toFloatOrNull()
                 val v2Val = vt2.toFloatOrNull()
+                val tz4Val = topZ4.toFloatOrNull()
                 val voVal = vo2max.toFloatOrNull()
                 val rBrVal = restingBr.toFloatOrNull()
                 val mBrVal = maxBr.toFloatOrNull()
@@ -236,14 +236,14 @@ fun MainScreen(
                 val rHrVal = restingHr.toFloatOrNull()
 
                 val error = when {
-                    eVal == null || v1Val == null || v2Val == null || voVal == null ||
+                    v1Val == null || v2Val == null || tz4Val == null || voVal == null ||
                         rBrVal == null || mBrVal == null || mHrVal == null || rHrVal == null ->
                         "All fields must be valid numbers."
-                    eVal <= 0 || v1Val <= 0 || v2Val <= 0 || voVal <= 0 ||
+                    v1Val <= 0 || v2Val <= 0 || tz4Val <= 0 || voVal <= 0 ||
                         rBrVal <= 0 || mBrVal <= 0 || mHrVal <= 0 || rHrVal <= 0 ->
                         "All values must be positive."
-                    eVal >= v1Val || v1Val >= v2Val || v2Val >= voVal ->
-                        "Thresholds must be in order: Endurance < VT1 < VT2 < VO2max."
+                    v1Val >= v2Val || v2Val >= tz4Val || tz4Val >= voVal ->
+                        "Thresholds must be in order: VT1 < VT2 < Top Z4 < VO2max."
                     rBrVal >= mBrVal ->
                         "Resting BR must be less than Max BR."
                     rHrVal >= mHrVal ->
@@ -259,9 +259,9 @@ fun MainScreen(
                     onSave(
                         PrefsData(
                             sensorId = sensorId,
-                            endurance = eVal!!,
                             vt1 = v1Val!!,
                             vt2 = v2Val!!,
+                            topZ4 = tz4Val!!,
                             vo2max = voVal!!,
                             restingBr = rBrVal!!,
                             maxBr = mBrVal!!,
