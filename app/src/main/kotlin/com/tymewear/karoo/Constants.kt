@@ -73,12 +73,26 @@ object Constants {
     const val ZONES_BITMAP_HEIGHT = 200
 
     // -------------------------------------------------------------------------
-    // BLE reconnect parameters
+    // BLE reconnect parameters — two-phase strategy
+    // Phase 1 (rapid): short fixed delays, direct connect for fast recovery
+    // Phase 2 (slow): autoConnect=true, lets Android handle scanning efficiently
     // -------------------------------------------------------------------------
 
-    const val BLE_MAX_RECONNECT_ATTEMPTS = 10
-    const val BLE_MAX_RECONNECT_DELAY_MS = 30000L
-    const val BLE_BASE_RECONNECT_DELAY_MS = 2000L
+    /** Phase 1: rapid reconnect attempts (2s apart, up to 10 tries = ~20s) */
+    const val BLE_RAPID_PHASE_ATTEMPTS = 10
+    const val BLE_RAPID_PHASE_DELAY_MS = 2000L
+
+    /** Phase 2: use autoConnect=true (Android-native power-efficient scanning).
+     *  Manual retry interval as fallback if autoConnect fails. */
+    const val BLE_SLOW_PHASE_DELAY_MS = 60000L
+
+    /** Data watchdog: if no BLE notification for this long, force reconnect.
+     *  Must be longer than the longest expected gap between IMU packets (~1Hz)
+     *  plus breath packets (~4s). 45s allows for sensor pauses at traffic lights. */
+    const val BLE_DATA_WATCHDOG_TIMEOUT_MS = 45000L
+
+    /** How often the watchdog checks for data freshness */
+    const val BLE_DATA_WATCHDOG_INTERVAL_MS = 10000L
 
     // -------------------------------------------------------------------------
     // Data bounds (for protocol validation)

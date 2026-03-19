@@ -37,6 +37,21 @@ class BleManager(private val context: Context) {
     private val bluetoothAdapter: BluetoothAdapter? =
         bluetoothManager?.adapter
 
+    /**
+     * Clear Android's GATT service cache via the hidden BluetoothGatt.refresh() method.
+     * Forces fresh service discovery after firmware updates that change the GATT table.
+     * Returns true if the method was found and invoked successfully.
+     */
+    private fun refreshGattCache(gatt: BluetoothGatt): Boolean {
+        return try {
+            val method = gatt.javaClass.getMethod("refresh")
+            method.invoke(gatt) as? Boolean ?: false
+        } catch (e: Exception) {
+            Timber.w("GATT cache refresh not available: ${e.message}")
+            false
+        }
+    }
+
     data class ScannedDevice(
         val name: String,
         val address: String,
@@ -99,7 +114,11 @@ class BleManager(private val context: Context) {
 
     /**
      * Connect to a VitalPro device by MAC address and observe breathing data notifications.
-     * Includes automatic reconnection with exponential backoff on disconnect.
+     * Includes:
+     * - GATT cache refresh on reconnect (handles firmware updates)
+     * - Two-phase reconnection: rapid (10x 2s) then slow (autoConnect=true, power-efficient)
+     * - Data watchdog: detects silent notification loss (45s timeout)
+     * - GATT error 133 and non-SUCCESS status handling
      */
     fun connect(address: String): Flow<ConnectionEvent> = callbackFlow {
         val device: BluetoothDevice = bluetoothAdapter?.getRemoteDevice(address)
@@ -109,52 +128,100 @@ class BleManager(private val context: Context) {
             }
 
         val gatt = AtomicReference<BluetoothGatt?>(null)
-        var reconnectAttempt = 0
-        val maxReconnectAttempts = Constants.BLE_MAX_RECONNECT_ATTEMPTS
+        val reconnectAttempt = java.util.concurrent.atomic.AtomicInteger(0)
         val handler = Handler(Looper.getMainLooper())
         val closed = AtomicBoolean(false)
+        // Tracks time of last BLE notification for the data watchdog.
+        // Initialized to MAX_VALUE so watchdog doesn't fire before first data arrives.
+        val lastDataTime = AtomicReference(Long.MAX_VALUE)
 
-        fun attemptConnect(autoConnect: Boolean) {
-            if (closed.get()) return
-            Timber.d("Connecting GATT to $address (autoConnect=$autoConnect, attempt=$reconnectAttempt)")
-            // Close any existing GATT before reconnecting
-            gatt.get()?.close()
+        // Use lateinit lambdas to allow mutual recursion between local functions.
+        // (Kotlin local `fun` declarations don't support forward references.)
+        lateinit var scheduleReconnect: () -> Unit
+        lateinit var attemptConnect: (autoConnect: Boolean) -> Unit
+
+        scheduleReconnect = {
+            if (!closed.get()) {
+                val attempt = reconnectAttempt.incrementAndGet()
+                if (attempt <= Constants.BLE_RAPID_PHASE_ATTEMPTS) {
+                    // Phase 1: rapid direct reconnects
+                    Timber.d("Scheduling reconnect #$attempt (rapid) in ${Constants.BLE_RAPID_PHASE_DELAY_MS}ms")
+                    handler.postDelayed({
+                        if (!closed.get()) attemptConnect(false)
+                    }, Constants.BLE_RAPID_PHASE_DELAY_MS)
+                } else {
+                    // Phase 2: let Android handle it power-efficiently via autoConnect=true.
+                    // Also schedule a manual fallback in case autoConnect silently fails.
+                    Timber.d("Scheduling reconnect #$attempt (slow/autoConnect) with ${Constants.BLE_SLOW_PHASE_DELAY_MS}ms fallback")
+                    attemptConnect(true)
+                    // Fallback: if autoConnect silently fails, retry after timeout.
+                    // Guard: skip if connection succeeded (reconnectAttempt resets to 0).
+                    handler.postDelayed({
+                        if (!closed.get() && reconnectAttempt.get() == attempt) {
+                            scheduleReconnect()
+                        }
+                    }, Constants.BLE_SLOW_PHASE_DELAY_MS)
+                }
+            }
+        }
+
+        attemptConnect = fn@{ autoConnect ->
+            if (closed.get()) return@fn
+            Timber.d("Connecting GATT to $address (autoConnect=$autoConnect, attempt=${reconnectAttempt.get()})")
+            // Close any existing GATT before reconnecting — single close point
+            gatt.getAndSet(null)?.close()
+            // Clear stale descriptor queue from previous connection
+            activeDescriptorQueue.set(null)
+
             gatt.set(device.connectGatt(context, autoConnect, object : BluetoothGattCallback() {
                 override fun onConnectionStateChange(
                     g: BluetoothGatt,
                     status: Int,
                     newState: Int,
                 ) {
+                    if (status != BluetoothGatt.GATT_SUCCESS) {
+                        Timber.w("GATT status=$status (newState=$newState) for $address")
+                    }
+
                     when (newState) {
                         BluetoothProfile.STATE_CONNECTED -> {
-                            Timber.d("GATT connected to $address (status=$status)")
-                            reconnectAttempt = 0
+                            if (status != BluetoothGatt.GATT_SUCCESS) {
+                                // Connected with non-zero status — unreliable connection
+                                Timber.w("Connected with error status $status, scheduling retry")
+                                trySend(ConnectionEvent.Disconnected)
+                                scheduleReconnect()
+                                return
+                            }
+                            Timber.d("GATT connected to $address")
+                            reconnectAttempt.set(0)
                             trySend(ConnectionEvent.Connected)
-                            g.discoverServices()
+
+                            // Refresh GATT cache to force fresh service discovery.
+                            // Critical after firmware updates that change the GATT table.
+                            val refreshed = refreshGattCache(g)
+                            Timber.d("GATT cache refresh: $refreshed")
+
+                            // Delay service discovery slightly to let cache refresh settle.
+                            // Guard against disconnect during the delay.
+                            handler.postDelayed({
+                                if (!closed.get() && gatt.get() === g) {
+                                    g.discoverServices()
+                                } else {
+                                    Timber.d("Skipping discoverServices — GATT changed or closed during delay")
+                                }
+                            }, 300)
                         }
                         BluetoothProfile.STATE_DISCONNECTED -> {
-                            Timber.d("GATT disconnected from $address (status=$status)")
+                            Timber.w("GATT disconnected from $address (status=$status, attempt=${reconnectAttempt.get()})")
                             trySend(ConnectionEvent.Disconnected)
-                            // Attempt reconnection with backoff
-                            if (!closed.get() && reconnectAttempt < maxReconnectAttempts) {
-                                reconnectAttempt++
-                                val delayMs = (Constants.BLE_BASE_RECONNECT_DELAY_MS * reconnectAttempt).coerceAtMost(Constants.BLE_MAX_RECONNECT_DELAY_MS)
-                                Timber.d("Scheduling reconnect attempt $reconnectAttempt in ${delayMs}ms")
-                                handler.postDelayed({
-                                    attemptConnect(true)
-                                }, delayMs)
-                            } else if (!closed.get()) {
-                                Timber.e("Max reconnect attempts reached for $address")
-                                close()
-                            }
+                            scheduleReconnect()
                         }
                     }
                 }
 
                 override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
                     if (status != BluetoothGatt.GATT_SUCCESS) {
-                        Timber.e("Service discovery failed: $status")
-                        // Treat as disconnect and retry
+                        Timber.e("Service discovery failed: status=$status")
                         g.disconnect()
                         return
                     }
@@ -167,6 +234,7 @@ class BleManager(private val context: Context) {
                     characteristic: BluetoothGattCharacteristic,
                     value: ByteArray,
                 ) {
+                    lastDataTime.set(System.currentTimeMillis())
                     trySend(ConnectionEvent.Data(characteristic.uuid, value))
                 }
 
@@ -176,6 +244,7 @@ class BleManager(private val context: Context) {
                     g: BluetoothGatt,
                     characteristic: BluetoothGattCharacteristic,
                 ) {
+                    lastDataTime.set(System.currentTimeMillis())
                     @Suppress("DEPRECATION")
                     val value = characteristic.value ?: return
                     trySend(ConnectionEvent.Data(characteristic.uuid, value))
@@ -192,7 +261,7 @@ class BleManager(private val context: Context) {
                         trySend(ConnectionEvent.Subscribed)
                         subscribeNext(g)
                     } else {
-                        Timber.e("Descriptor write failed for $charUuid: $status")
+                        Timber.e("Descriptor write failed for $charUuid: status=$status")
                         subscribeNext(g)
                     }
                 }
@@ -219,6 +288,27 @@ class BleManager(private val context: Context) {
         // First connection: direct (not autoConnect) for faster initial connect
         attemptConnect(false)
 
+        // Data watchdog: detects silent connection loss where GATT stays "connected"
+        // but notifications silently stop (radio interference, sensor sleep, firmware bug).
+        // Only activates after first data packet arrives (lastDataTime starts at MAX_VALUE).
+        val watchdogRunnable = object : Runnable {
+            override fun run() {
+                if (closed.get()) return
+                val last = lastDataTime.get()
+                val currentGatt = gatt.get()
+                if (last != Long.MAX_VALUE && currentGatt != null) {
+                    val elapsed = System.currentTimeMillis() - last
+                    if (elapsed > Constants.BLE_DATA_WATCHDOG_TIMEOUT_MS) {
+                        Timber.w("Data watchdog: no notifications for ${elapsed / 1000}s, forcing reconnect")
+                        lastDataTime.set(Long.MAX_VALUE) // reset to avoid rapid re-triggers
+                        currentGatt.disconnect()
+                    }
+                }
+                handler.postDelayed(this, Constants.BLE_DATA_WATCHDOG_INTERVAL_MS)
+            }
+        }
+        handler.postDelayed(watchdogRunnable, Constants.BLE_DATA_WATCHDOG_INTERVAL_MS)
+
         awaitClose {
             Timber.d("Closing GATT connection to $address")
             closed.set(true)
@@ -227,27 +317,31 @@ class BleManager(private val context: Context) {
         }
     }
 
-    // Queue for sequential CCCD descriptor writes (Android BLE allows one GATT op at a time)
-    private val descriptorWriteQueue = LinkedList<BluetoothGattDescriptor>()
+    // Per-connection descriptor write queue (AtomicReference for thread-safe swap on reconnect)
+    private val activeDescriptorQueue = AtomicReference<LinkedList<BluetoothGattDescriptor>?>(null)
 
     /**
      * Subscribe to all VitalPro characteristic notifications.
      * Queues CCCD writes since Android BLE only supports one GATT operation at a time.
+     * Queue is scoped to this connection to prevent corruption on rapid reconnect.
      */
     private fun subscribeToAllCharacteristics(gatt: BluetoothGatt) {
         val service = gatt.getService(Protocol.VITALPRO_SERVICE_UUID)
         if (service == null) {
-            Timber.e("VitalPro service not found")
-            if (BuildConfig.DEBUG) {
-                gatt.services.forEach { s ->
-                    Timber.d("  Service: ${s.uuid}")
-                    s.characteristics.forEach { c ->
-                        Timber.d("    Char: ${c.uuid} props=${c.properties}")
-                    }
+            Timber.e("VitalPro service ${Protocol.VITALPRO_SERVICE_UUID} not found!")
+            Timber.e("Available services (${gatt.services.size}):")
+            gatt.services.forEach { s ->
+                Timber.e("  Service: ${s.uuid}")
+                s.characteristics.forEach { c ->
+                    Timber.e("    Char: ${c.uuid} props=0x%02x".format(c.properties))
                 }
             }
+            // Disconnect and let reconnect logic retry — service table may be stale
+            gatt.disconnect()
             return
         }
+
+        Timber.d("VitalPro service found with ${service.characteristics.size} characteristics")
 
         // Subscribe to all three known characteristics
         val charUuids = listOf(
@@ -256,12 +350,13 @@ class BleManager(private val context: Context) {
             Protocol.SENSOR_ID_CHAR_UUID,
         )
 
-        descriptorWriteQueue.clear()
+        // Per-connection queue prevents corruption on rapid reconnect
+        val queue = LinkedList<BluetoothGattDescriptor>()
 
         for (uuid in charUuids) {
             val characteristic = service.getCharacteristic(uuid)
             if (characteristic == null) {
-                Timber.w("Characteristic $uuid not found in service")
+                Timber.e("Characteristic $uuid not found in VitalPro service — firmware may have changed")
                 continue
             }
 
@@ -286,7 +381,7 @@ class BleManager(private val context: Context) {
                 } else {
                     BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
                 }
-                descriptorWriteQueue.add(descriptor)
+                queue.add(descriptor)
                 Timber.d("Queued notification subscription for $uuid")
             } else {
                 Timber.w("CCCD descriptor not found for $uuid")
@@ -294,6 +389,7 @@ class BleManager(private val context: Context) {
         }
 
         // Start processing the queue
+        activeDescriptorQueue.set(queue)
         subscribeNext(gatt)
     }
 
@@ -301,7 +397,8 @@ class BleManager(private val context: Context) {
      * Write the next queued CCCD descriptor, or read battery level when queue is empty.
      */
     private fun subscribeNext(gatt: BluetoothGatt) {
-        val descriptor = descriptorWriteQueue.poll()
+        val queue = activeDescriptorQueue.get()
+        val descriptor = queue?.poll()
         if (descriptor != null) {
             @Suppress("DEPRECATION")
             gatt.writeDescriptor(descriptor)

@@ -73,8 +73,13 @@ object Protocol {
         if (deviceName == null) return false
         val lower = deviceName.lowercase().trim()
         if (lower.startsWith(HR_SENSOR_PREFIX)) return false
-        return DEVICE_NAME_PATTERNS.any { lower.contains(it) }
-            || TYME_STRAP_REGEX.matches(lower)
+        if (DEVICE_NAME_PATTERNS.any { lower.contains(it) }) return true
+        if (TYME_STRAP_REGEX.matches(lower)) return true
+        // Log near-misses to catch firmware name changes early
+        if (lower.contains("tyme") || lower.contains("vital")) {
+            Timber.w("Potential VitalPro device not matched by name patterns: '$deviceName'")
+        }
+        return false
     }
 
     /**
