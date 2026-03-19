@@ -84,7 +84,7 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
 
         // Read configured sensor ID from preferences
         val prefs = applicationContext.getSharedPreferences("tymewear_prefs", MODE_PRIVATE)
-        val sensorId = prefs.getString("sensor_id", null)
+        val sensorId = prefs.getString("sensor_id", null)?.takeIf { it.isNotBlank() }
 
         val scanScope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
         scanScope.launch {
