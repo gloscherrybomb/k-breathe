@@ -47,10 +47,10 @@ object Constants {
     // Default thresholds
     // -------------------------------------------------------------------------
 
-    const val DEFAULT_VT1 = 83f
-    const val DEFAULT_VT2 = 111f
-    const val DEFAULT_TOP_Z4 = 128f
-    const val DEFAULT_VO2MAX = 180f
+    const val DEFAULT_VT1 = 73f
+    const val DEFAULT_VT2 = 96f
+    const val DEFAULT_TOP_Z4 = 112f
+    const val DEFAULT_VO2MAX = 130f
 
     // -------------------------------------------------------------------------
     // Default MI parameters

@@ -3,9 +3,9 @@
   "packageName": "com.tymewear.karoo",
   "iconUrl": "https://github.com/gloscherrybomb/k-breathe/releases/latest/download/icon.png",
   "latestApkUrl": "https://github.com/gloscherrybomb/k-breathe/releases/latest/download/k-breathe.apk",
-  "latestVersion": "0.4.0",
-  "latestVersionCode": 6,
+  "latestVersion": "0.4.1",
+  "latestVersionCode": 7,
   "developer": "gloscherrybomb",
   "description": "Displays live breathing data from the Tymewear VitalPro sensor on your Karoo. Includes VE, breathing rate, tidal volume, mobilization index, VE graph, and time-in-zones fields with FIT recording.",
-  "releaseNotes": "Update to 5-zone ventilation model matching Tymewear app: drop Recovery zone, add Top Z4 zone (128 L/min default). New zone colors: teal, blue, amber, orange, red."
+  "releaseNotes": "Bulletproof BLE connection: GATT cache refresh after firmware updates, unlimited two-phase reconnection, data watchdog for silent disconnects, GATT error 133 handling. Fix scan failing when sensor_id pref is empty. Updated default zone thresholds."
 }
