@@ -79,10 +79,18 @@ class BleForegroundService : Service() {
 
         fun start(ctx: Context) {
             val intent = Intent(ctx, BleForegroundService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                ctx.startForegroundService(intent)
-            } else {
-                ctx.startService(intent)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    ctx.startForegroundService(intent)
+                } else {
+                    ctx.startService(intent)
+                }
+            } catch (e: Exception) {
+                // Android 14+ may throw ForegroundServiceStartNotAllowedException if the
+                // app isn't in an eligible foreground state. The manifest declares
+                // foregroundServiceType="connectedDevice" which should satisfy that
+                // policy, but log and continue if not — BLE still works without FG pin.
+                Timber.w(e, "startForegroundService rejected — extension will run without FG pin")
             }
         }
 
