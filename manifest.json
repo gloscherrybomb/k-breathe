@@ -3,9 +3,9 @@
   "packageName": "com.tymewear.karoo",
   "iconUrl": "https://github.com/gloscherrybomb/k-breathe/releases/latest/download/icon.png",
   "latestApkUrl": "https://github.com/gloscherrybomb/k-breathe/releases/latest/download/k-breathe.apk",
-  "latestVersion": "0.4.1",
-  "latestVersionCode": 7,
+  "latestVersion": "0.4.2",
+  "latestVersionCode": 8,
   "developer": "gloscherrybomb",
   "description": "Displays live breathing data from the Tymewear VitalPro sensor on your Karoo. Includes VE, breathing rate, tidal volume, mobilization index, VE graph, and time-in-zones fields with FIT recording.",
-  "releaseNotes": "Bulletproof BLE connection: GATT cache refresh after firmware updates, unlimited two-phase reconnection, data watchdog for silent disconnects, GATT error 133 handling. Fix scan failing when sensor_id pref is empty. Updated default zone thresholds."
+  "releaseNotes": "Reliability overhaul: scan-assisted initial connect for contested BLE radios (pingyijin's 8-device scenario), HIGH connection priority to survive radio starvation, foreground service to keep BLE alive across ride-start (thomasbrunner-spec freeze fix), decoded GATT/scan status codes in logs, time-to-first-packet diagnostics. Debounced service lifecycle avoids restart races on rapid reconnect."
 }
