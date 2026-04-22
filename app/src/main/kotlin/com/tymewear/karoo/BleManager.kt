@@ -227,6 +227,8 @@ class BleManager(private val context: Context) {
                         g.disconnect()
                         return
                     }
+                    val priorityOk = g.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+                    Timber.d("requestConnectionPriority(HIGH) = $priorityOk")
                     Timber.d("Services discovered, subscribing to notifications")
                     subscribeToAllCharacteristics(g)
                 }
