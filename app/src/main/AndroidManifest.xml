@@ -9,6 +9,7 @@
         tools:targetApi="s" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
     <!-- Prevent implicit hardware requirements from blocking install on Karoo -->
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
@@ -45,6 +46,10 @@
                 android:name="io.hammerhead.karooext.EXTENSION_INFO"
                 android:resource="@xml/extension_info" />
         </service>
+
+        <service
+            android:name=".BleForegroundService"
+            android:exported="false" />
 
         <receiver
             android:name=".SmoothingReceiver"

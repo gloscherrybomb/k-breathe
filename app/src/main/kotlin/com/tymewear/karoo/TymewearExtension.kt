@@ -28,6 +28,7 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
     lateinit var karooSystem: KarooSystemService
     private lateinit var bleManager: BleManager
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
+    private val activeConnections = java.util.concurrent.atomic.AtomicInteger(0)
 
     override val types by lazy {
         listOf(
@@ -109,13 +110,35 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
     override fun connectDevice(uid: String, emitter: Emitter<DeviceEvent>) {
         Timber.d("Connecting to device: $uid")
 
+        if (activeConnections.incrementAndGet() == 1) {
+            Timber.d("First active connection — starting foreground service")
+            BleForegroundService.start(applicationContext)
+        }
+
+        val wrapped = object : Emitter<DeviceEvent> {
+            override fun onNext(event: DeviceEvent) = emitter.onNext(event)
+            override fun onError(err: Throwable) = emitter.onError(err)
+            override fun onComplete() = emitter.onComplete()
+            override fun cancel() = emitter.cancel()
+            override fun setCancellable(cancel: () -> Unit) {
+                emitter.setCancellable {
+                    try { cancel() } finally {
+                        if (activeConnections.decrementAndGet() == 0) {
+                            Timber.d("Last active connection closed — stopping foreground service")
+                            BleForegroundService.stop(applicationContext)
+                        }
+                    }
+                }
+            }
+        }
+
         val device = TymewearDevice(
             extension = extension,
             uid = uid,
             displayName = "VitalPro",
             bleManager = bleManager,
         )
-        device.connect(emitter)
+        device.connect(wrapped)
     }
 
     override fun startFit(emitter: Emitter<FitEffect>) {
