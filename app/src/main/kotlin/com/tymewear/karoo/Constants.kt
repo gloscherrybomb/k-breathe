@@ -94,6 +94,10 @@ object Constants {
     /** How often the watchdog checks for data freshness */
     const val BLE_DATA_WATCHDOG_INTERVAL_MS = 10000L
 
+    /** Initial connect: time to wait for device to appear in a targeted scan
+     *  before falling back to autoConnect=true. */
+    const val BLE_INITIAL_SCAN_TIMEOUT_MS = 8000L
+
     // -------------------------------------------------------------------------
     // Data bounds (for protocol validation)
     // -------------------------------------------------------------------------

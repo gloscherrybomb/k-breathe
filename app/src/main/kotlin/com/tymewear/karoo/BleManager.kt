@@ -140,7 +140,8 @@ class BleManager(private val context: Context) {
         // Use lateinit lambdas to allow mutual recursion between local functions.
         // (Kotlin local `fun` declarations don't support forward references.)
         lateinit var scheduleReconnect: () -> Unit
-        lateinit var attemptConnect: (autoConnect: Boolean) -> Unit
+        lateinit var attemptConnect: (target: BluetoothDevice, autoConnect: Boolean) -> Unit
+        lateinit var scanThenConnect: () -> Unit
 
         scheduleReconnect = {
             if (!closed.get()) {
@@ -149,13 +150,13 @@ class BleManager(private val context: Context) {
                     // Phase 1: rapid direct reconnects
                     Timber.d("Scheduling reconnect #$attempt (rapid) in ${Constants.BLE_RAPID_PHASE_DELAY_MS}ms")
                     handler.postDelayed({
-                        if (!closed.get()) attemptConnect(false)
+                        if (!closed.get()) attemptConnect(device, false)
                     }, Constants.BLE_RAPID_PHASE_DELAY_MS)
                 } else {
                     // Phase 2: let Android handle it power-efficiently via autoConnect=true.
                     // Also schedule a manual fallback in case autoConnect silently fails.
                     Timber.d("Scheduling reconnect #$attempt (slow/autoConnect) with ${Constants.BLE_SLOW_PHASE_DELAY_MS}ms fallback")
-                    attemptConnect(true)
+                    attemptConnect(device, true)
                     // Fallback: if autoConnect silently fails, retry after timeout.
                     // Guard: skip if connection succeeded (reconnectAttempt resets to 0).
                     handler.postDelayed({
@@ -167,15 +168,15 @@ class BleManager(private val context: Context) {
             }
         }
 
-        attemptConnect = fn@{ autoConnect ->
+        attemptConnect = fn@{ target, autoConnect ->
             if (closed.get()) return@fn
-            Timber.d("Connecting GATT to $address (autoConnect=$autoConnect, attempt=${reconnectAttempt.get()})")
+            Timber.d("Connecting GATT to ${target.address} (autoConnect=$autoConnect, attempt=${reconnectAttempt.get()})")
             // Close any existing GATT before reconnecting — single close point
             gatt.getAndSet(null)?.close()
             // Clear stale descriptor queue from previous connection
             activeDescriptorQueue.set(null)
 
-            gatt.set(device.connectGatt(context, autoConnect, object : BluetoothGattCallback() {
+            gatt.set(target.connectGatt(context, autoConnect, object : BluetoothGattCallback() {
                 override fun onConnectionStateChange(
                     g: BluetoothGatt,
                     status: Int,
@@ -297,8 +298,61 @@ class BleManager(private val context: Context) {
             }, BluetoothDevice.TRANSPORT_LE))
         }
 
-        // First connection: direct (not autoConnect) for faster initial connect
-        attemptConnect(false)
+        scanThenConnect = {
+            if (!closed.get()) {
+                val scanner = bluetoothAdapter?.bluetoothLeScanner
+                if (scanner == null) {
+                    Timber.w("Scanner unavailable for targeted scan, falling back to autoConnect=true")
+                    attemptConnect(device, true)
+                } else {
+                    val scanStartMs = System.currentTimeMillis()
+                    val filter = ScanFilter.Builder().setDeviceAddress(address).build()
+                    val settings = ScanSettings.Builder()
+                        .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                        .build()
+
+                    lateinit var timeoutRunnable: Runnable
+
+                    val cb = object : ScanCallback() {
+                        private val hit = AtomicBoolean(false)
+                        override fun onScanResult(callbackType: Int, result: ScanResult) {
+                            if (!hit.compareAndSet(false, true)) return
+                            val elapsed = System.currentTimeMillis() - scanStartMs
+                            Timber.d("Targeted scan hit for $address in ${elapsed}ms")
+                            scanner.stopScan(this)
+                            activeScanCallback.compareAndSet(this, null)
+                            handler.removeCallbacks(timeoutRunnable)
+                            attemptConnect(result.device, false)
+                        }
+                        override fun onScanFailed(errorCode: Int) {
+                            Timber.e("Targeted scan failed: ${BleStatus.decodeScan(errorCode)}; falling back to autoConnect=true")
+                            scanner.stopScan(this)
+                            activeScanCallback.compareAndSet(this, null)
+                            handler.removeCallbacks(timeoutRunnable)
+                            attemptConnect(device, true)
+                        }
+                    }
+                    activeScanCallback.set(cb)
+
+                    timeoutRunnable = Runnable {
+                        if (closed.get()) return@Runnable
+                        val existing = activeScanCallback.getAndSet(null)
+                        if (existing === cb) {
+                            Timber.w("Targeted scan timeout after ${Constants.BLE_INITIAL_SCAN_TIMEOUT_MS / 1000}s, falling back to autoConnect=true")
+                            scanner.stopScan(cb)
+                            attemptConnect(device, true)
+                        }
+                    }
+
+                    Timber.d("Starting targeted scan for $address (${Constants.BLE_INITIAL_SCAN_TIMEOUT_MS / 1000}s timeout)")
+                    scanner.startScan(listOf(filter), settings, cb)
+                    handler.postDelayed(timeoutRunnable, Constants.BLE_INITIAL_SCAN_TIMEOUT_MS)
+                }
+            }
+        }
+
+        // First connection: scan-assisted (scan for MAC, connect to fresh handle)
+        scanThenConnect()
 
         // Data watchdog: detects silent connection loss where GATT stays "connected"
         // but notifications silently stop (radio interference, sensor sleep, firmware bug).
@@ -325,12 +379,18 @@ class BleManager(private val context: Context) {
             Timber.d("Closing GATT connection to $address")
             closed.set(true)
             handler.removeCallbacksAndMessages(null)
+            activeScanCallback.getAndSet(null)?.let {
+                try { bluetoothAdapter?.bluetoothLeScanner?.stopScan(it) } catch (_: Exception) {}
+            }
             gatt.getAndSet(null)?.close()
         }
     }
 
     // Per-connection descriptor write queue (AtomicReference for thread-safe swap on reconnect)
     private val activeDescriptorQueue = AtomicReference<LinkedList<BluetoothGattDescriptor>?>(null)
+
+    // Per-connection targeted scan callback (for scan-assisted initial connect)
+    private val activeScanCallback = AtomicReference<ScanCallback?>(null)
 
     /**
      * Subscribe to all VitalPro characteristic notifications.
