@@ -98,7 +98,7 @@ class BleManager(private val context: Context) {
             }
 
             override fun onScanFailed(errorCode: Int) {
-                Timber.e("BLE scan failed: $errorCode")
+                Timber.e("BLE scan failed: ${BleStatus.decodeScan(errorCode)}")
                 close(Exception("BLE scan failed: $errorCode"))
             }
         }
@@ -131,6 +131,8 @@ class BleManager(private val context: Context) {
         val reconnectAttempt = java.util.concurrent.atomic.AtomicInteger(0)
         val handler = Handler(Looper.getMainLooper())
         val closed = AtomicBoolean(false)
+        val sessionStartMs = System.currentTimeMillis()
+        val firstPacketLogged = AtomicBoolean(false)
         // Tracks time of last BLE notification for the data watchdog.
         // Initialized to MAX_VALUE so watchdog doesn't fire before first data arrives.
         val lastDataTime = AtomicReference(Long.MAX_VALUE)
@@ -180,14 +182,14 @@ class BleManager(private val context: Context) {
                     newState: Int,
                 ) {
                     if (status != BluetoothGatt.GATT_SUCCESS) {
-                        Timber.w("GATT status=$status (newState=$newState) for $address")
+                        Timber.w("GATT status=${BleStatus.decodeGatt(status)} newState=$newState for $address")
                     }
 
                     when (newState) {
                         BluetoothProfile.STATE_CONNECTED -> {
                             if (status != BluetoothGatt.GATT_SUCCESS) {
                                 // Connected with non-zero status — unreliable connection
-                                Timber.w("Connected with error status $status, scheduling retry")
+                                Timber.w("Connected with error status ${BleStatus.decodeGatt(status)}, scheduling retry")
                                 trySend(ConnectionEvent.Disconnected)
                                 scheduleReconnect()
                                 return
@@ -212,7 +214,7 @@ class BleManager(private val context: Context) {
                             }, 300)
                         }
                         BluetoothProfile.STATE_DISCONNECTED -> {
-                            Timber.w("GATT disconnected from $address (status=$status, attempt=${reconnectAttempt.get()})")
+                            Timber.w("GATT disconnected from $address (status=${BleStatus.decodeGatt(status)}, attempt=${reconnectAttempt.get()})")
                             trySend(ConnectionEvent.Disconnected)
                             scheduleReconnect()
                         }
@@ -221,7 +223,7 @@ class BleManager(private val context: Context) {
 
                 override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
                     if (status != BluetoothGatt.GATT_SUCCESS) {
-                        Timber.e("Service discovery failed: status=$status")
+                        Timber.e("Service discovery failed: status=${BleStatus.decodeGatt(status)}")
                         g.disconnect()
                         return
                     }
@@ -234,7 +236,11 @@ class BleManager(private val context: Context) {
                     characteristic: BluetoothGattCharacteristic,
                     value: ByteArray,
                 ) {
-                    lastDataTime.set(System.currentTimeMillis())
+                    val now = System.currentTimeMillis()
+                    lastDataTime.set(now)
+                    if (firstPacketLogged.compareAndSet(false, true)) {
+                        Timber.d("First data received after ${now - sessionStartMs}ms")
+                    }
                     trySend(ConnectionEvent.Data(characteristic.uuid, value))
                 }
 
@@ -244,7 +250,11 @@ class BleManager(private val context: Context) {
                     g: BluetoothGatt,
                     characteristic: BluetoothGattCharacteristic,
                 ) {
-                    lastDataTime.set(System.currentTimeMillis())
+                    val now = System.currentTimeMillis()
+                    lastDataTime.set(now)
+                    if (firstPacketLogged.compareAndSet(false, true)) {
+                        Timber.d("First data received after ${now - sessionStartMs}ms")
+                    }
                     @Suppress("DEPRECATION")
                     val value = characteristic.value ?: return
                     trySend(ConnectionEvent.Data(characteristic.uuid, value))
@@ -261,7 +271,7 @@ class BleManager(private val context: Context) {
                         trySend(ConnectionEvent.Subscribed)
                         subscribeNext(g)
                     } else {
-                        Timber.e("Descriptor write failed for $charUuid: status=$status")
+                        Timber.e("Descriptor write failed for $charUuid: status=${BleStatus.decodeGatt(status)}")
                         subscribeNext(g)
                     }
                 }
