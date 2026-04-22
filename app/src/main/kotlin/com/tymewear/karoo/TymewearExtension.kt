@@ -29,6 +29,8 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
     private lateinit var bleManager: BleManager
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
     private val activeConnections = java.util.concurrent.atomic.AtomicInteger(0)
+    private val fgHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val pendingStopRunnable = java.util.concurrent.atomic.AtomicReference<Runnable?>(null)
 
     override val types by lazy {
         listOf(
@@ -111,6 +113,8 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
         Timber.d("Connecting to device: $uid")
 
         if (activeConnections.incrementAndGet() == 1) {
+            // Cancel any pending stop from a recent disconnect — we're alive again.
+            pendingStopRunnable.getAndSet(null)?.let { fgHandler.removeCallbacks(it) }
             Timber.d("First active connection — starting foreground service")
             BleForegroundService.start(applicationContext)
         }
@@ -124,8 +128,8 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
                 emitter.setCancellable {
                     try { cancel() } finally {
                         if (activeConnections.decrementAndGet() == 0) {
-                            Timber.d("Last active connection closed — stopping foreground service")
-                            BleForegroundService.stop(applicationContext)
+                            Timber.d("Last active connection closed — scheduling debounced stop")
+                            scheduleForegroundStop()
                         }
                     }
                 }
@@ -139,6 +143,26 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
             bleManager = bleManager,
         )
         device.connect(wrapped)
+    }
+
+    private fun scheduleForegroundStop() {
+        lateinit var runnable: Runnable
+        runnable = Runnable {
+            if (activeConnections.get() == 0) {
+                Timber.d("Debounced stop firing — stopping foreground service")
+                BleForegroundService.stop(applicationContext)
+            } else {
+                Timber.d("Debounced stop fired but counter non-zero — skipping")
+            }
+            pendingStopRunnable.compareAndSet(runnable, null)
+        }
+        // Replace any previously-queued stop with the new one.
+        pendingStopRunnable.getAndSet(runnable)?.let { fgHandler.removeCallbacks(it) }
+        fgHandler.postDelayed(runnable, DEBOUNCE_STOP_MS)
+    }
+
+    companion object {
+        private const val DEBOUNCE_STOP_MS = 1500L
     }
 
     override fun startFit(emitter: Emitter<FitEffect>) {
@@ -235,6 +259,11 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
         TymewearData.setDisconnected()
         karooSystem.dispatch(ReleaseBluetooth(extension))
         karooSystem.disconnect()
+        // Flush any pending debounced stop before dying
+        pendingStopRunnable.getAndSet(null)?.let { fgHandler.removeCallbacks(it) }
+        if (activeConnections.get() == 0) {
+            BleForegroundService.stop(applicationContext)
+        }
         super.onDestroy()
     }
 }
