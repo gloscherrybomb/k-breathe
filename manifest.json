@@ -3,9 +3,9 @@
   "packageName": "com.tymewear.karoo",
   "iconUrl": "https://github.com/gloscherrybomb/k-breathe/releases/latest/download/icon.png",
   "latestApkUrl": "https://github.com/gloscherrybomb/k-breathe/releases/latest/download/k-breathe.apk",
-  "latestVersion": "0.4.2",
-  "latestVersionCode": 8,
+  "latestVersion": "0.4.3",
+  "latestVersionCode": 9,
   "developer": "gloscherrybomb",
   "description": "Displays live breathing data from the Tymewear VitalPro sensor on your Karoo. Includes VE, breathing rate, tidal volume, mobilization index, VE graph, and time-in-zones fields with FIT recording.",
-  "releaseNotes": "Reliability overhaul: scan-assisted initial connect for contested BLE radios (pingyijin's 8-device scenario), HIGH connection priority to survive radio starvation, foreground service to keep BLE alive across ride-start (thomasbrunner-spec freeze fix), decoded GATT/scan status codes in logs, time-to-first-packet diagnostics. Debounced service lifecycle avoids restart races on rapid reconnect."
+  "releaseNotes": "Diagnostic + defensive patch addressing the \"second-ride freeze\" pattern reported on Karoo 3. Three changes: (1) dropped connections now show \"--\" on data fields instead of the last cached value, so disconnects are visible; (2) Bluetooth ownership is re-requested on every ride start, defending against Karoo's BT arbitration silently revoking the extension's slot; (3) extra log lines for forensic capture via adb logcat. This release does not claim to fix the underlying connection issue — it makes it visible and adds defensive plumbing while we gather diagnostic data from affected users."
 }
