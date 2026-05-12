@@ -139,6 +139,7 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
             override fun cancel() = emitter.cancel()
             override fun setCancellable(cancel: () -> Unit) {
                 emitter.setCancellable {
+                    Timber.d("Wrapped emitter cancelled for $uid")
                     try { cancel() } finally {
                         if (activeConnections.decrementAndGet() == 0) {
                             Timber.d("Last active connection closed — scheduling debounced stop")
