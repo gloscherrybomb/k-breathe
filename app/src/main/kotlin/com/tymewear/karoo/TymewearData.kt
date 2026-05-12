@@ -203,5 +203,13 @@ object TymewearData {
         _batteryPercent.value = -1
         brBuffer.clear()
         tvBuffer.clear()
+        // Zero the user-facing flows so a dropped connection shows "--" instead
+        // of the last cached value (which looks like a freeze).
+        _breathRate.value = 0.0
+        _tidalVolume.value = 0.0
+        _minuteVolume.value = 0.0
+        _smoothBreathRate.value = 0.0
+        _smoothTidalVolume.value = 0.0
+        _smoothMinuteVolume.value = 0.0
     }
 }
