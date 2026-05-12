@@ -19,7 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -80,9 +80,13 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
                     }
                 }
 
+                // Second RideState consumer (first is in startFit). Intentional: this
+                // one is for BT-arbitration defense; the other writes FIT records.
+                // Dedupe by class so we only react to actual state transitions, not
+                // payload changes within a single state (e.g. Recording's timestamp).
                 scope.launch {
                     karooSystem.consumerFlow<RideState>()
-                        .distinctUntilChanged()
+                        .distinctUntilChangedBy { it::class }
                         .collect { state ->
                             Timber.d("RideState transition: $state")
                             if (state is RideState.Recording) {
