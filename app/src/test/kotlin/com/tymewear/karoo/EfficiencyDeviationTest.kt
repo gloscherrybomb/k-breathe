@@ -104,4 +104,18 @@ class EfficiencyDeviationTest {
         e.reset()
         assertNull(e.deviation())
     }
+
+    @Test
+    fun `a baseline built from a ride self-scores near zero`() {
+        // Spec §11: the baseline ride must self-check within +/- 2%. A baseline built
+        // from a ride's own steady samples, then scored against that same ride, is a
+        // tautology only if the pipeline is honest — any real bias in binning, matching,
+        // or the median-of-medians would show up here as a nonzero deviation.
+        val name = "ramp_2026-02-21.csv"
+        val b = VeBaseline()
+        steady(name).forEach { b.update(it) }
+        val d = score(b, name) ?: error("$name produced no deviation")
+        // Measured -0.84% with the code as committed.
+        assertEquals("self-check should be within +/- 2%", 0.0, d.percent, 2.0)
+    }
 }
