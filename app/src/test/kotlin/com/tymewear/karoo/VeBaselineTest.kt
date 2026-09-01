@@ -85,4 +85,29 @@ class VeBaselineTest {
         assertEquals(0, b.coveredBins())
         assertTrue(b.serialise().isEmpty() || b.coveredBins() == 0)
     }
+
+    private fun countOf(b: VeBaseline, loadW: Double): Int {
+        val centre = b.binCentre(loadW)
+        val triple = b.serialise().split(";").first { it.startsWith("$centre:") }
+        return triple.split(":")[2].toInt()
+    }
+
+    @Test
+    fun `count stops growing at the cap`() {
+        val b = VeBaseline(minSamplesPerBin = 1, maxSamplesPerBin = 100)
+        repeat(250) { b.update(LoadVeSample(200.0, 50.0)) }
+        assertEquals(100, countOf(b, 200.0))
+    }
+
+    @Test
+    fun `a saturated bin tracks new values instead of averaging them in`() {
+        val cap = 100
+        val b = VeBaseline(minSamplesPerBin = 1, maxSamplesPerBin = cap)
+        repeat(cap) { b.update(LoadVeSample(200.0, 50.0)) }
+        repeat(cap) { b.update(LoadVeSample(200.0, 70.0)) }
+        // An uncapped running mean would land exactly on 60.0; the EMA behaviour lands
+        // measurably above it (~62.6 for cap=100) — the discriminating assertion.
+        val ve = b.expectedVe(200.0)!!
+        assertTrue("expected EMA pull above 62.0, was $ve", ve > 62.0)
+    }
 }
