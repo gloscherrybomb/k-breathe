@@ -26,11 +26,18 @@ class ThresholdPowerDataType(extension: String) : DataTypeImpl(extension, "thres
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
         scope.launch {
             VentilatoryState.vt1PowerW.collect { w ->
+                // A numeric stream has no way to express absence except NotAvailable —
+                // emitting 0.0 as a placeholder would be indistinguishable from a real
+                // "0 W" reading downstream.
+                if (!VentilatoryState.isEnabled() || w == null) {
+                    emitter.onNext(StreamState.NotAvailable)
+                    return@collect
+                }
                 emitter.onNext(
                     StreamState.Streaming(
                         DataPoint(
                             dataTypeId = dataTypeId,
-                            values = mapOf(DataType.Field.SINGLE to (w ?: 0.0)),
+                            values = mapOf(DataType.Field.SINGLE to w),
                         ),
                     ),
                 )

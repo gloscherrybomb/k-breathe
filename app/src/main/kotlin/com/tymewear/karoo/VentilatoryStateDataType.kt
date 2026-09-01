@@ -29,11 +29,18 @@ class VentilatoryStateDataType(extension: String) : DataTypeImpl(extension, "ven
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
         scope.launch {
             VentilatoryState.deviation.collect { dev ->
+                // A numeric stream has no way to express absence except NotAvailable —
+                // emitting 0.0 as a placeholder would be indistinguishable from a real
+                // "0% deviation" reading downstream.
+                if (!VentilatoryState.isEnabled() || dev == null) {
+                    emitter.onNext(StreamState.NotAvailable)
+                    return@collect
+                }
                 emitter.onNext(
                     StreamState.Streaming(
                         DataPoint(
                             dataTypeId = dataTypeId,
-                            values = mapOf(DataType.Field.SINGLE to (dev?.percent ?: 0.0)),
+                            values = mapOf(DataType.Field.SINGLE to dev.percent),
                         ),
                     ),
                 )
