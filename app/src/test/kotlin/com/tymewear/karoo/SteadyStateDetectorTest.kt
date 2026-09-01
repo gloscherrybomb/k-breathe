@@ -87,4 +87,17 @@ class SteadyStateDetectorTest {
         val f = RideFixture.load("outdoor_endurance_2026-08-09.csv")
         assertEquals(0, feed(f).size)
     }
+
+    @Test
+    fun `sustained stale VE must not emit a frozen average`() {
+        val d = SteadyStateDetector()
+        // Warm up: steady power with real VE until the window would normally emit.
+        repeat(60) { d.onSample(200.0, 60.0) }
+        // Now VE goes stale (null) for a long stretch while power stays rock steady —
+        // this is exactly a sensor dropout mid-effort. No sample must be comparable
+        // until fresh VE has re-accumulated, or it would be a frozen pre-dropout value.
+        var emitted = 0
+        repeat(200) { i -> if (d.onSample(200.0, null) != null) emitted++ }
+        assertEquals("stale VE during steady power must never emit a sample", 0, emitted)
+    }
 }

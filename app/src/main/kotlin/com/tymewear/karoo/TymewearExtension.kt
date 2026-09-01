@@ -112,6 +112,9 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
                                 karooSystem.dispatch(RequestBluetooth(extension))
                                 VentilatoryState.onRideStart()
                             }
+                            if (state is RideState.Paused) {
+                                VentilatoryState.onRidePause()
+                            }
                             if (state is RideState.Idle) {
                                 VentilatoryState.onRideEnd(applicationContext)
                             }

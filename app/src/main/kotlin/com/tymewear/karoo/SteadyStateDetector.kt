@@ -31,6 +31,13 @@ class SteadyStateDetector(
         if (ve != null) {
             veWindow.addLast(ve)
             while (veWindow.size > veSmoothingSeconds) veWindow.removeFirst()
+        } else {
+            // A null VE means the breathing data was stale or absent for this tick
+            // (see TymewearData.isDataFresh()). Keeping the pre-dropout window would let
+            // onSample keep returning a frozen average for the rest of the dropout — a
+            // sample that looks real but describes nothing that is actually happening.
+            // No sample is comparable until fresh VE has re-accumulated.
+            veWindow.clear()
         }
 
         if (loadW == null || loadW < minLoadW || loadW > maxLoadW) return null
