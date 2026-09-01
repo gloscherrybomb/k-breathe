@@ -116,6 +116,14 @@ object TymewearData {
     var vo2maxThreshold = Constants.DEFAULT_VO2MAX.toDouble()
         private set
 
+    /** The rider's configured thresholds as one value. */
+    fun currentThresholds(): ZoneThresholds =
+        ZoneThresholds(vt1Threshold, vt2Threshold, topZ4Threshold, vo2maxThreshold)
+
+    /** Zone for a VE value the caller is presenting or recording. Callers pass the value
+     *  they actually show, so the number and its zone can never disagree. */
+    fun zoneFor(ve: Double): Int = ZoneClassifier.zoneFor(ve, currentThresholds())
+
     // MI parameters (loaded from prefs)
     var restingBr = Constants.DEFAULT_RESTING_BR.toDouble()
         private set
@@ -170,14 +178,8 @@ object TymewearData {
         _smoothTidalVolume.value = smoothTv
         _smoothMinuteVolume.value = smoothBr * smoothTv
 
-        // Compute zone from smoothed VE for stable zone transitions
-        _veZone.value = Protocol.veZone(
-            _smoothMinuteVolume.value,
-            vt1Threshold,
-            vt2Threshold,
-            topZ4Threshold,
-            vo2maxThreshold,
-        )
+        // Zone from the smoothed VE this object publishes, via the one classifier.
+        _veZone.value = zoneFor(_smoothMinuteVolume.value)
         _isConnected.value = true
         // Recompute MI if we have HR data
         recomputeMi()

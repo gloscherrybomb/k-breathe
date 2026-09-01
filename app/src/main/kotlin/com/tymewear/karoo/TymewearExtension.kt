@@ -191,12 +191,6 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
         Timber.d("startFit called")
         TymewearData.resetZoneTimes()
 
-        val prefs = applicationContext.getSharedPreferences("tymewear_prefs", MODE_PRIVATE)
-        val vt1 = prefs.getFloat("vt1_threshold", Constants.DEFAULT_VT1).toDouble()
-        val vt2 = prefs.getFloat("vt2_threshold", Constants.DEFAULT_VT2).toDouble()
-        val topZ4 = prefs.getFloat("topz4_threshold", Constants.DEFAULT_TOP_Z4).toDouble()
-        val vo2max = prefs.getFloat("vo2max_threshold", Constants.DEFAULT_VO2MAX).toDouble()
-
         // Use ELAPSED_TIME stream (ticks ~1Hz) combined with RideState
         // so we emit a FIT record every second while recording.
         // RideState alone only fires on state transitions.
@@ -217,13 +211,13 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
                                 BleDiagnostics.onStaleRecordSkipped()
                                 return@collect
                             }
-                            val br = TymewearData.breathRate.value
-                            val tv = TymewearData.tidalVolume.value
-                            val ve = TymewearData.minuteVolume.value
+                            val br = TymewearData.smoothBreathRate.value
+                            val tv = TymewearData.smoothTidalVolume.value
+                            val ve = TymewearData.smoothMinuteVolume.value
                             val ie = TymewearData.ieRatio.value
                             val mi = TymewearData.mobilizationIndex.value
                             val brr = TymewearData.percentBrr.value
-                            val zone = Protocol.veZone(ve, vt1, vt2, topZ4, vo2max)
+                            val zone = TymewearData.zoneFor(ve)
 
                             if (BuildConfig.DEBUG) Timber.d("FIT record: BR=%.1f TV=%.3f VE=%.1f zone=%d MI=%.1f", br, tv, ve, zone, mi)
 

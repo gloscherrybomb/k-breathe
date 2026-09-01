@@ -103,7 +103,8 @@ class VentilationDataType(extension: String) : DataTypeImpl(extension, "ve") {
                     if (viewBuffer.isEmpty()) 0.0
                     else viewBuffer.sum() / viewBuffer.size
                 }
-                val zone = if (fresh) TymewearData.veZone.value else 0
+                // Colour from the same value shown, so number and zone always agree.
+                val zone = if (fresh && avg > 0) TymewearData.zoneFor(avg) else 0
 
                 val remoteViews = RemoteViews(context.packageName, R.layout.view_ventilation)
 
