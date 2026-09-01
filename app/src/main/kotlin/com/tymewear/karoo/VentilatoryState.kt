@@ -121,11 +121,16 @@ object VentilatoryState {
      * A real ride start resets the pipeline for a fresh effort. A resume from pause
      * (RideState goes Paused -> Recording, which also passes through here) must not
      * reset anything — [RideLifecycle.onRecording] is what tells the two apart.
+     *
+     * [context] is optional so pure-logic callers (tests) can exercise the lifecycle
+     * transition without an Android [Context]. When provided, a fresh start also
+     * re-reads the enabled flag — see [reloadEnabledFlag] for why that is necessary.
      */
-    fun onRideStart() {
+    fun onRideStart(context: Context? = null) {
         synchronized(lock) {
             val freshStart = lifecycle.onRecording()
             if (!freshStart) return
+            if (context != null) reloadEnabledFlag(context)
             detector.reset()
             deviationCalc.reset()
             drift.reset()
@@ -134,6 +139,26 @@ object VentilatoryState {
             _vt1PowerW.value = null
             _vt2PowerW.value = null
             _driftPercent.value = null
+        }
+    }
+
+    /**
+     * Re-reads only the enabled flag from prefs, leaving the baseline, detector and
+     * in-flight ride state untouched.
+     *
+     * [load] runs exactly once, in the extension's `onCreate`. If the rider flips the
+     * "Enable ventilatory state" toggle in the settings app, that change lives only in
+     * SharedPreferences until something re-reads it — without this, the toggle would
+     * silently do nothing until the extension process happened to restart, which looks
+     * indistinguishable from a broken toggle. Calling this at the start of every fresh
+     * ride (see [onRideStart]) closes that gap without the blunt, state-destroying
+     * effect of re-running [load] (which would also reset the in-memory baseline to
+     * whatever was last persisted, clobbering anything accumulated since).
+     */
+    fun reloadEnabledFlag(context: Context) {
+        synchronized(lock) {
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            enabled = prefs.getBoolean(KEY_ENABLED, false)
         }
     }
 

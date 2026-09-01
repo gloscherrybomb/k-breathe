@@ -113,7 +113,7 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
                             if (state is RideState.Recording) {
                                 Timber.d("Recording started — re-dispatching RequestBluetooth")
                                 karooSystem.dispatch(RequestBluetooth(extension))
-                                VentilatoryState.onRideStart()
+                                VentilatoryState.onRideStart(applicationContext)
                             }
                             if (state is RideState.Paused) {
                                 VentilatoryState.onRidePause()

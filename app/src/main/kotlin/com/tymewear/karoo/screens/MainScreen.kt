@@ -15,7 +15,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,6 +33,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.tymewear.karoo.Constants
 import com.tymewear.karoo.TymewearData
+import com.tymewear.karoo.VentilatoryState
 
 data class PrefsData(
     val sensorId: String,
@@ -42,12 +45,16 @@ data class PrefsData(
     val maxBr: Float,
     val maxHr: Float,
     val restingHr: Float,
+    val dynamicStateEnabled: Boolean,
+    val driftAlertEnabled: Boolean,
+    val driftAlertPct: Int,
 )
 
 @Composable
 fun MainScreen(
     onSave: (PrefsData) -> Unit,
     loadPrefs: () -> PrefsData,
+    onResetBaseline: () -> Unit,
 ) {
     // Seeded from Constants so these placeholders cannot drift away from the values
     // the rest of the app actually falls back to. They are replaced by the stored
@@ -61,6 +68,9 @@ fun MainScreen(
     var maxBr by remember { mutableStateOf(Constants.DEFAULT_MAX_BR.toString()) }
     var maxHr by remember { mutableStateOf(Constants.DEFAULT_MAX_HR.toString()) }
     var restingHr by remember { mutableStateOf(Constants.DEFAULT_RESTING_HR.toString()) }
+    var dynamicStateEnabled by remember { mutableStateOf(false) }
+    var driftAlertEnabled by remember { mutableStateOf(false) }
+    var driftAlertPct by remember { mutableStateOf(Constants.STATE_DEFAULT_DRIFT_ALERT_PCT.toString()) }
     var saved by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf<String?>(null) }
     val isConnected by TymewearData.isConnected.collectAsState()
@@ -76,6 +86,9 @@ fun MainScreen(
         maxBr = prefs.maxBr.toString()
         maxHr = prefs.maxHr.toString()
         restingHr = prefs.restingHr.toString()
+        dynamicStateEnabled = prefs.dynamicStateEnabled
+        driftAlertEnabled = prefs.driftAlertEnabled
+        driftAlertPct = prefs.driftAlertPct.toString()
     }
 
     Column(
@@ -218,6 +231,84 @@ fun MainScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // --- Ventilatory State (Beta) ---
+        Text(
+            text = "Ventilatory State (Beta)",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        Text(
+            text = "Compares today's breathing against your own baseline. " +
+                "Requires a power meter paired to the Karoo.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Switch(
+                checked = dynamicStateEnabled,
+                onCheckedChange = { dynamicStateEnabled = it; saved = false },
+            )
+            Text(
+                text = "Enable ventilatory state",
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+        }
+
+        val bins by VentilatoryState.baselineBins.collectAsState()
+        Text(
+            text = if (bins >= Constants.STATE_MIN_BASELINE_BINS) {
+                "Baseline: $bins power ranges learned."
+            } else {
+                "Baseline: calibrating ($bins of ${Constants.STATE_MIN_BASELINE_BINS} " +
+                    "power ranges). Ride steadily with power to build it."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+
+        OutlinedButton(
+            onClick = { onResetBaseline() },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Reset baseline")
+        }
+        Text(
+            text = "Discards everything learned so far. Calibration starts over from " +
+                "your next steady ride.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Switch(
+                checked = driftAlertEnabled,
+                onCheckedChange = { driftAlertEnabled = it; saved = false },
+            )
+            Text(
+                text = "Alert on breathing drift",
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+        }
+
+        OutlinedTextField(
+            value = driftAlertPct,
+            onValueChange = { driftAlertPct = it; saved = false },
+            label = { Text("Drift alert threshold (%)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            supportingText = { Text("Breathing rate rise vs. this effort's early reference") },
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         if (validationError != null) {
             Text(
                 text = validationError!!,
@@ -237,13 +328,16 @@ fun MainScreen(
                 val mBrVal = maxBr.toFloatOrNull()
                 val mHrVal = maxHr.toFloatOrNull()
                 val rHrVal = restingHr.toFloatOrNull()
+                val driftPctVal = driftAlertPct.toIntOrNull()
 
                 val error = when {
                     v1Val == null || v2Val == null || tz4Val == null || voVal == null ||
-                        rBrVal == null || mBrVal == null || mHrVal == null || rHrVal == null ->
+                        rBrVal == null || mBrVal == null || mHrVal == null || rHrVal == null ||
+                        driftPctVal == null ->
                         "All fields must be valid numbers."
                     v1Val <= 0 || v2Val <= 0 || tz4Val <= 0 || voVal <= 0 ||
-                        rBrVal <= 0 || mBrVal <= 0 || mHrVal <= 0 || rHrVal <= 0 ->
+                        rBrVal <= 0 || mBrVal <= 0 || mHrVal <= 0 || rHrVal <= 0 ||
+                        driftPctVal <= 0 ->
                         "All values must be positive."
                     v1Val >= v2Val || v2Val >= tz4Val || tz4Val >= voVal ->
                         "Thresholds must be in order: VT1 < VT2 < Top Z4 < VO2max."
@@ -251,6 +345,8 @@ fun MainScreen(
                         "Resting BR must be less than Max BR."
                     rHrVal >= mHrVal ->
                         "Resting HR must be less than Max HR."
+                    driftPctVal > 100 ->
+                        "Drift alert threshold must be 100 or less."
                     else -> null
                 }
 
@@ -270,6 +366,9 @@ fun MainScreen(
                             maxBr = mBrVal!!,
                             maxHr = mHrVal!!,
                             restingHr = rHrVal!!,
+                            dynamicStateEnabled = dynamicStateEnabled,
+                            driftAlertEnabled = driftAlertEnabled,
+                            driftAlertPct = driftPctVal!!,
                         ),
                     )
                     saved = true

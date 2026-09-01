@@ -31,6 +31,9 @@ class MainActivity : ComponentActivity() {
                             .putFloat("max_br", prefs.maxBr)
                             .putFloat("max_hr", prefs.maxHr)
                             .putFloat("resting_hr", prefs.restingHr)
+                            .putBoolean("dynamic_state_enabled", prefs.dynamicStateEnabled)
+                            .putBoolean("drift_alert_enabled", prefs.driftAlertEnabled)
+                            .putInt("drift_alert_pct", prefs.driftAlertPct)
                             .apply()
                         // Reload thresholds for immediate effect
                         TymewearData.loadThresholds(applicationContext)
@@ -47,7 +50,16 @@ class MainActivity : ComponentActivity() {
                             maxBr = p.getFloat("max_br", Constants.DEFAULT_MAX_BR),
                             maxHr = p.getFloat("max_hr", Constants.DEFAULT_MAX_HR),
                             restingHr = p.getFloat("resting_hr", Constants.DEFAULT_RESTING_HR),
+                            dynamicStateEnabled = p.getBoolean("dynamic_state_enabled", false),
+                            driftAlertEnabled = p.getBoolean("drift_alert_enabled", false),
+                            driftAlertPct = p.getInt(
+                                "drift_alert_pct",
+                                Constants.STATE_DEFAULT_DRIFT_ALERT_PCT,
+                            ),
                         )
+                    },
+                    onResetBaseline = {
+                        VentilatoryState.resetBaseline(applicationContext)
                     },
                 )
             }

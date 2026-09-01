@@ -24,6 +24,9 @@ I really like coffee, so if this enhances your life, please buy me one :)
 | **MI %** | Mobilization Index — ratio of breathing reserve to heart rate reserve. 100% = fully mobilized (limit) |
 | **MI Batt** | Mobilization Index as a battery gauge — shows remaining reserve, 0% = empty |
 | **VE Zones** | Time-in-zone bar chart (5 zones, matching Karoo's built-in HR/Power zone style) |
+| **VE State** | Today's ventilatory efficiency vs your own baseline (Beta). Negative = less breathing for the same power |
+| **VT1 Today** | The power at which you'd cross VT1 today, given how your breathing compares with baseline (Beta) |
+| **BR Drift** | Breathing-rate drift vs the effort's early reference — a live view of the "11–15% and you're done" rule |
 
 ## Ventilation Zones
 
@@ -46,6 +49,25 @@ Get your values from a [Tymewear threshold test](https://www.tymewear.com/blogs/
 then enter them under **Ventilation Zone Thresholds** in the K-Breathe app
 (VT1, VT2, Top Z4, VO2max, in L/min). Thresholds drift with fitness, so retest
 periodically — Tymewear suggest every 6–8 weeks.
+
+## Ventilatory State (Beta)
+
+Ventilatory thresholds move day to day with fatigue, heat, sleep and freshness. A fixed
+zone table asserts one number every day and is wrong on most of them.
+
+With a power meter paired, K-Breathe learns what ventilation you normally produce at each
+power and then shows how today differs from it — as a percentage, and as the power at
+which you'd cross VT1 today. It needs no threshold test: the baseline builds itself from
+steady riding and tracks your fitness as it changes.
+
+Enable it under **Ventilatory State (Beta)** in the app. Until enough steady riding has
+accumulated the fields show "calibrating" rather than a number. A **Reset baseline**
+button in the same section discards what has been learned so far and starts calibration
+over — use it if a baseline was built under unrepresentative conditions (illness, a bike
+fit change, a long break).
+
+**Requires a power meter.** Without power there is no power-to-ventilation relationship
+to measure, and the fields report unavailable.
 
 ## FIT Recording
 
