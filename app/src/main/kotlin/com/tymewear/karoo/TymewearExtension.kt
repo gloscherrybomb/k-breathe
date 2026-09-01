@@ -44,6 +44,7 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
             TimeInZonesDataType(extension),
             VentilatoryStateDataType(extension),
             ThresholdPowerDataType(extension),
+            BreathingDriftDataType(extension),
         )
     }
 
