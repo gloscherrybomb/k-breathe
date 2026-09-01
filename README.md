@@ -111,10 +111,15 @@ adb shell pm grant com.tymewear.karoo android.permission.ACCESS_FINE_LOCATION
 
 #### Pair the Sensor
 
-1. On the Karoo, go to **Profiles** > **Data Pages** > **Add Data Field**
-2. Select any K-Breathe field (e.g. VE, BR) from the **Extensions** list
-3. The Karoo will prompt you to pair the sensor — the VitalPro strap appears as `TYME-XXXX`
-4. **Important:** Add the sensor from the Extensions list, not the Bluetooth settings
+1. On the Karoo, go to **Sensors**, tap **+**, then across the top tap **Extensions** and pick
+   Tymewear — the VitalPro strap appears as `TYME-XXXX`.
+2. Then add K-Breathe fields to a data page: **Profiles** > **Data Pages** > **Add Data Field**,
+   and pick them from the **Extensions** list.
+3. **Important:** pair the sensor through the Extensions entry in the Sensors menu, not through
+   the Karoo's Bluetooth settings.
+
+Adding a data field first may also prompt you to pair, but several users have reported no prompt
+appearing, so the Sensors-menu route above is the reliable one.
 
 ### Karoo 2 installation
 
