@@ -87,10 +87,12 @@ Session summary includes time and percentage spent in each VE zone. FIT files ar
 
 ### Prerequisites
 
-- Karoo 3 cycling computer
+- Karoo 2 or Karoo 3 cycling computer
 - Tymewear VitalPro breathing sensor
 
-### Option 1: Companion App (recommended)
+### Karoo 3 installation
+
+#### Option 1: Companion App (recommended)
 
 1. On your phone, open the [latest release](https://github.com/gloscherrybomb/k-breathe/releases) in your browser
 2. Long-press the `k-breathe.apk` link and share it with the **Hammerhead Companion** app
@@ -98,7 +100,7 @@ Session summary includes time and percentage spent in each VE zone. FIT files ar
 4. Open the K-Breathe app once to grant Bluetooth permissions
 5. Future updates can be installed from the app details page on the Karoo
 
-### Option 2: ADB
+#### Option 2: ADB
 
 ```bash
 adb install -r k-breathe.apk
@@ -107,12 +109,37 @@ adb shell pm grant com.tymewear.karoo android.permission.BLUETOOTH_CONNECT
 adb shell pm grant com.tymewear.karoo android.permission.ACCESS_FINE_LOCATION
 ```
 
-### Pair the Sensor
+#### Pair the Sensor
 
 1. On the Karoo, go to **Profiles** > **Data Pages** > **Add Data Field**
 2. Select any K-Breathe field (e.g. VE, BR) from the **Extensions** list
 3. The Karoo will prompt you to pair the sensor — the VitalPro strap appears as `TYME-XXXX`
 4. **Important:** Add the sensor from the Extensions list, not the Bluetooth settings
+
+### Karoo 2 installation
+
+The Karoo Companion app does not support the Karoo 2, and K-Breathe does not yet appear in
+the Karoo 2's **Extensions** store, so the app needs to be sideloaded via ADB.
+
+For easy-to-follow instructions for both Mac and Windows, see DC Rainmaker's article
+[How to Sideload Android Apps On Your Hammerhead Karoo 1/2/3](https://www.dcrainmaker.com/2021/02/how-to-sideload-android-apps-on-your-hammerhead-karoo-1-karoo-2.html).
+
+#### ADB installation
+
+Download the latest `k-breathe.apk` from the [releases page](https://github.com/gloscherrybomb/k-breathe/releases).
+
+```bash
+adb install -r k-breathe.apk
+adb shell pm grant com.tymewear.karoo android.permission.ACCESS_FINE_LOCATION
+```
+
+The Karoo 2 runs an older Android release in which the `BLUETOOTH_SCAN` and `BLUETOOTH_CONNECT`
+permissions do not exist, so they cannot (and need not) be granted. K-Breathe runs fine without them.
+
+#### Pair the Sensor
+
+1. On the Karoo, go to **Sensors**.
+2. Tap **+**, then across the top tap **Extensions** and pick Tymewear.
 
 ## Building from Source
 
