@@ -230,5 +230,8 @@ object TymewearData {
         _smoothBreathRate.value = 0.0
         _smoothTidalVolume.value = 0.0
         _smoothMinuteVolume.value = 0.0
+        // Otherwise the pre-ride zone chart keeps accruing time against whatever zone
+        // was last live before the disconnect — see TimeInZonesDataType.
+        _veZone.value = 0
     }
 }

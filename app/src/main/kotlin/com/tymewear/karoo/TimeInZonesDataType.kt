@@ -62,11 +62,15 @@ class TimeInZonesDataType(extension: String) : DataTypeImpl(extension, "ve_zones
                 if (shared.total > 0) {
                     zt = shared
                 } else {
-                    // Track from live VE zone when not recording
-                    val zone = TymewearData.veZone.value
-                    if (zone in 1..5) {
-                        localZones[zone - 1]++
-                        localTotal++
+                    // Track from live VE zone when not recording. A stale zone (sensor
+                    // dropout) must not silently keep accruing seconds against whatever
+                    // zone it last reported before going stale.
+                    if (TymewearData.isDataFresh()) {
+                        val zone = TymewearData.veZone.value
+                        if (zone in 1..5) {
+                            localZones[zone - 1]++
+                            localTotal++
+                        }
                     }
                     zt = ZoneTimes(
                         z1 = localZones[0], z2 = localZones[1], z3 = localZones[2],

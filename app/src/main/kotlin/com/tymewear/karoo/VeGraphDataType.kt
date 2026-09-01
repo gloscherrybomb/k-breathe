@@ -45,6 +45,13 @@ class VeGraphDataType(extension: String) : DataTypeImpl(extension, "ve_graph") {
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
         scope.launch {
             TymewearData.minuteVolume.collect { ve ->
+                // A disconnect zeroes this flow's source value, which would otherwise
+                // surface as a genuine "0.0 L/min" reading downstream rather than an
+                // honest absence.
+                if (!TymewearData.isDataFresh()) {
+                    emitter.onNext(StreamState.NotAvailable)
+                    return@collect
+                }
                 emitter.onNext(
                     StreamState.Streaming(
                         DataPoint(

@@ -50,6 +50,14 @@ class VentilationDataType(extension: String) : DataTypeImpl(extension, "ve") {
                     else streamBuffer.sum() / streamBuffer.size
                 }
 
+                // A disconnect zeroes this flow's source value, which would otherwise
+                // surface as a genuine "0.0 L/min" reading downstream (Karoo-owned
+                // fields, graphs, averages) rather than an honest absence.
+                if (!TymewearData.isDataFresh()) {
+                    emitter.onNext(StreamState.NotAvailable)
+                    return@collect
+                }
+
                 emitter.onNext(
                     StreamState.Streaming(
                         DataPoint(

@@ -28,6 +28,13 @@ class BreathingRateDataType(extension: String) : DataTypeImpl(extension, "br") {
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
         scope.launch {
             TymewearData.smoothBreathRate.collect { br ->
+                // A disconnect zeroes this flow's source value, which would otherwise
+                // surface as a genuine "0 bpm" reading downstream rather than an honest
+                // absence.
+                if (!TymewearData.isDataFresh()) {
+                    emitter.onNext(StreamState.NotAvailable)
+                    return@collect
+                }
                 emitter.onNext(
                     StreamState.Streaming(
                         DataPoint(

@@ -29,6 +29,13 @@ class TidalVolumeDataType(extension: String) : DataTypeImpl(extension, "tv") {
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
         scope.launch {
             TymewearData.smoothTidalVolume.collect { tv ->
+                // A disconnect zeroes this flow's source value, which would otherwise
+                // surface as a genuine "0 mL" reading downstream rather than an honest
+                // absence.
+                if (!TymewearData.isDataFresh()) {
+                    emitter.onNext(StreamState.NotAvailable)
+                    return@collect
+                }
                 // Emit in mL for Karoo numeric (integer) display
                 emitter.onNext(
                     StreamState.Streaming(

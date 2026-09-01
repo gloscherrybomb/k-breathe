@@ -34,6 +34,13 @@ class MobilizationIndexDataType(extension: String) : DataTypeImpl(extension, "mi
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
         scope.launch {
             TymewearData.mobilizationIndex.collect { mi ->
+                // A disconnect zeroes the breathing input this is derived from, which
+                // would otherwise surface as a genuine "0%" reading downstream rather
+                // than an honest absence.
+                if (!TymewearData.isDataFresh()) {
+                    emitter.onNext(StreamState.NotAvailable)
+                    return@collect
+                }
                 emitter.onNext(
                     StreamState.Streaming(
                         DataPoint(
