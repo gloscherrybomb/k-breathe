@@ -47,14 +47,11 @@ object VentilatoryState {
     /** This ride's steady samples, held back from the baseline until the ride ends. */
     private val rideSamples = ArrayList<LoadVeSample>()
 
-    /** True from a real ride start until that ride ends; a resume from pause must not
-     *  reset the pipeline, and an end must not fire without a matching start (guards
-     *  against consumerFlow<RideState>() replaying an Idle on a cold subscribe). */
-    private var rideActive = false
-
-    /** True while the ride is paused: samples must not reach the pipeline or the
-     *  baseline while the rider is stopped. */
-    private var paused = false
+    /** Tracks active/paused across Idle/Paused/Recording transitions and tells apart a
+     *  fresh start from a resume — pure logic, unit-tested on its own in
+     *  RideLifecycleTest since a resume must clear pause without resetting the pipeline,
+     *  and getting both right at once is exactly where a prior fix regressed. */
+    private val lifecycle = RideLifecycle()
 
     private val _deviation = MutableStateFlow<Deviation?>(null)
     val deviation: StateFlow<Deviation?> = _deviation.asStateFlow()
@@ -94,7 +91,7 @@ object VentilatoryState {
      */
     fun onPowerSample(loadW: Double?) {
         synchronized(lock) {
-            if (!enabled || paused) return
+            if (!enabled || lifecycle.isPaused) return
             val fresh = TymewearData.isDataFresh()
             val ve = if (fresh) TymewearData.smoothMinuteVolume.value.takeIf { it > 0.0 } else null
             val br = if (fresh) TymewearData.smoothBreathRate.value.takeIf { it > 0.0 } else null
@@ -123,13 +120,12 @@ object VentilatoryState {
     /**
      * A real ride start resets the pipeline for a fresh effort. A resume from pause
      * (RideState goes Paused -> Recording, which also passes through here) must not
-     * reset anything — [rideActive] already being true is how the two are told apart.
+     * reset anything — [RideLifecycle.onRecording] is what tells the two apart.
      */
     fun onRideStart() {
         synchronized(lock) {
-            if (rideActive) return
-            rideActive = true
-            paused = false
+            val freshStart = lifecycle.onRecording()
+            if (!freshStart) return
             detector.reset()
             deviationCalc.reset()
             drift.reset()
@@ -144,7 +140,7 @@ object VentilatoryState {
     /** Stops samples from reaching the pipeline or the baseline while the rider is
      *  stopped, without discarding what has already been buffered for this ride. */
     fun onRidePause() {
-        synchronized(lock) { paused = true }
+        synchronized(lock) { lifecycle.onPaused() }
     }
 
     fun onRideEnd(context: Context) {
@@ -154,13 +150,11 @@ object VentilatoryState {
             // subscribe, which would otherwise fire an Idle transition (and so this
             // method) with nothing having started, spuriously incrementing rideCount
             // and re-persisting an unchanged baseline.
-            if (!rideActive) return
+            if (!lifecycle.onIdle()) return
             for (sample in rideSamples) baseline.update(sample)
             rideSamples.clear()
             _baselineBins.value = baseline.coveredBins()
             rideCount += 1
-            rideActive = false
-            paused = false
             persist(context)
             Timber.d("VentilatoryState saved: bins=${baseline.coveredBins()} rides=$rideCount")
         }
