@@ -61,6 +61,9 @@ class MainActivity : ComponentActivity() {
                     onResetBaseline = {
                         VentilatoryState.resetBaseline(applicationContext)
                     },
+                    loadBaselineStatus = {
+                        VentilatoryState.persistedStatus(applicationContext)
+                    },
                 )
             }
         }

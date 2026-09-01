@@ -6,6 +6,25 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import timber.log.Timber
 
+/** Baseline status read straight from prefs, for callers (the settings screen) that may
+ *  run in a process where [VentilatoryState.load] has never executed. */
+data class BaselineStatus(
+    val coveredBins: Int,
+    val rideCount: Int,
+    val updatedAtMs: Long,
+)
+
+/**
+ * Why a threshold power has no value right now, when it doesn't.
+ *
+ * [CALIBRATING] and [OUT_OF_RANGE] call for different guidance to the rider: one means
+ * "keep riding steadily, the baseline isn't ready yet", the other means "the baseline is
+ * confident but this threshold sits outside the loads it covers" — riding more steady
+ * miles at the same intensities will not fix it. Conflating them as one "calibrating"
+ * screen would tell an already-confident rider to keep waiting forever.
+ */
+enum class ThresholdReason { CALIBRATING, OUT_OF_RANGE }
+
 /**
  * Owns the ventilatory-state pipeline across a ride: which samples are comparable, what
  * the rider's baseline is, and how today differs from it.
@@ -71,6 +90,10 @@ object VentilatoryState {
     private val _baselineBins = MutableStateFlow(0)
     val baselineBins: StateFlow<Int> = _baselineBins.asStateFlow()
 
+    /** Only meaningful while [vt1PowerW] is null — see [ThresholdReason]. */
+    private val _vt1ThresholdReason = MutableStateFlow(ThresholdReason.CALIBRATING)
+    val vt1ThresholdReason: StateFlow<ThresholdReason> = _vt1ThresholdReason.asStateFlow()
+
     fun isEnabled(): Boolean = enabled
 
     fun load(context: Context) {
@@ -121,11 +144,25 @@ object VentilatoryState {
             if (rideSamples.size < MAX_RIDE_SAMPLES) rideSamples.add(sample)
 
             val dev = deviationCalc.deviation()
-            _deviation.value = dev
-            if (dev != null && baseline.coveredBins() >= Constants.STATE_MIN_BASELINE_BINS) {
+            // A single ride can satisfy the bin-coverage check on its own — the rides
+            // check keeps that ride from being scored against a "baseline" that is
+            // really just one other day. rideCount only advances in onRideEnd, so
+            // within a ride this condition is monotonic: it cannot flip from true back
+            // to false, so a value published here is never silently retracted later in
+            // the same ride (only reset at onRideStart/onRideEnd).
+            val confident = dev != null &&
+                baseline.coveredBins() >= Constants.STATE_MIN_BASELINE_BINS &&
+                rideCount >= Constants.STATE_MIN_BASELINE_RIDES
+            _deviation.value = if (confident) dev else null
+            if (confident) {
                 val t = TymewearData.currentThresholds()
-                _vt1PowerW.value = ThresholdShift.thresholdPowerW(baseline, t.vt1, dev.fraction)
+                val vt1 = ThresholdShift.thresholdPowerW(baseline, t.vt1, dev!!.fraction)
+                _vt1PowerW.value = vt1
                 _vt2PowerW.value = ThresholdShift.thresholdPowerW(baseline, t.vt2, dev.fraction)
+                // A confident baseline that still can't place VT1 means VT1 sits
+                // outside the loads the baseline covers, not that calibration is
+                // incomplete — see ThresholdReason.
+                if (vt1 == null) _vt1ThresholdReason.value = ThresholdReason.OUT_OF_RANGE
             }
         }
     }
@@ -152,6 +189,7 @@ object VentilatoryState {
             _vt1PowerW.value = null
             _vt2PowerW.value = null
             _driftPercent.value = null
+            _vt1ThresholdReason.value = ThresholdReason.CALIBRATING
         }
     }
 
@@ -194,6 +232,14 @@ object VentilatoryState {
             _baselineBins.value = baseline.coveredBins()
             rideCount += 1
             persist(context)
+            // These held this ride's numbers while it was recording; leaving them set
+            // between rides would show the last ride's deviation/threshold/drift as if
+            // it were current while the rider is standing still.
+            _deviation.value = null
+            _vt1PowerW.value = null
+            _vt2PowerW.value = null
+            _driftPercent.value = null
+            _vt1ThresholdReason.value = ThresholdReason.CALIBRATING
             Timber.d("VentilatoryState saved: bins=${baseline.coveredBins()} rides=$rideCount")
         }
     }
@@ -206,6 +252,24 @@ object VentilatoryState {
             _baselineBins.value = 0
             persist(context)
         }
+    }
+
+    /**
+     * Baseline status read straight from prefs rather than in-memory state, for a
+     * settings-screen launch that has no running extension in this process to have
+     * populated [baselineBins] via [load] — a cold start from the launcher icon after
+     * process death, most commonly. Deliberately does not call [load]: that would
+     * overwrite the in-memory baseline/deviation calculator out from under a ride that
+     * is actively recording in this same process.
+     */
+    fun persistedStatus(context: Context): BaselineStatus {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val persisted = VeBaseline.deserialise(prefs.getString(KEY_BASELINE, "") ?: "")
+        return BaselineStatus(
+            coveredBins = persisted.coveredBins(),
+            rideCount = prefs.getInt(KEY_RIDES, 0),
+            updatedAtMs = prefs.getLong(KEY_UPDATED, 0L),
+        )
     }
 
     private fun persist(context: Context) {

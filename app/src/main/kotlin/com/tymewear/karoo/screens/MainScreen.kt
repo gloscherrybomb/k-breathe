@@ -1,5 +1,6 @@
 package com.tymewear.karoo.screens
 
+import android.text.format.DateUtils
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,12 +14,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -31,9 +34,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.tymewear.karoo.BaselineStatus
 import com.tymewear.karoo.Constants
 import com.tymewear.karoo.TymewearData
-import com.tymewear.karoo.VentilatoryState
 
 data class PrefsData(
     val sensorId: String,
@@ -55,6 +58,7 @@ fun MainScreen(
     onSave: (PrefsData) -> Unit,
     loadPrefs: () -> PrefsData,
     onResetBaseline: () -> Unit,
+    loadBaselineStatus: () -> BaselineStatus,
 ) {
     // Seeded from Constants so these placeholders cannot drift away from the values
     // the rest of the app actually falls back to. They are replaced by the stored
@@ -73,6 +77,8 @@ fun MainScreen(
     var driftAlertPct by remember { mutableStateOf(Constants.STATE_DEFAULT_DRIFT_ALERT_PCT.toString()) }
     var saved by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf<String?>(null) }
+    var baselineStatus by remember { mutableStateOf(BaselineStatus(0, 0, 0L)) }
+    var showResetConfirm by remember { mutableStateOf(false) }
     val isConnected by TymewearData.isConnected.collectAsState()
 
     LaunchedEffect(Unit) {
@@ -89,6 +95,11 @@ fun MainScreen(
         dynamicStateEnabled = prefs.dynamicStateEnabled
         driftAlertEnabled = prefs.driftAlertEnabled
         driftAlertPct = prefs.driftAlertPct.toString()
+        // Read from prefs directly, not the in-memory VentilatoryState flow: this
+        // screen can be opened by a fresh process before the extension has run in it
+        // (a cold start from the launcher icon after process death), when the flow is
+        // still at its zero default despite a complete baseline sitting in prefs.
+        baselineStatus = loadBaselineStatus()
     }
 
     Column(
@@ -258,20 +269,33 @@ fun MainScreen(
             )
         }
 
-        val bins by VentilatoryState.baselineBins.collectAsState()
+        val binsReady = baselineStatus.coveredBins >= Constants.STATE_MIN_BASELINE_BINS
+        val ridesReady = baselineStatus.rideCount >= Constants.STATE_MIN_BASELINE_RIDES
+        val lastUpdated = if (baselineStatus.updatedAtMs > 0) {
+            " Last updated " + DateUtils.getRelativeTimeSpanString(
+                baselineStatus.updatedAtMs,
+                System.currentTimeMillis(),
+                DateUtils.MINUTE_IN_MILLIS,
+            ) + "."
+        } else {
+            ""
+        }
         Text(
-            text = if (bins >= Constants.STATE_MIN_BASELINE_BINS) {
-                "Baseline: $bins power ranges learned."
+            text = if (binsReady && ridesReady) {
+                "Baseline: ${baselineStatus.coveredBins} power ranges learned across " +
+                    "${baselineStatus.rideCount} rides.$lastUpdated"
             } else {
-                "Baseline: calibrating ($bins of ${Constants.STATE_MIN_BASELINE_BINS} " +
-                    "power ranges). Ride steadily with power to build it."
+                "Baseline: calibrating (${baselineStatus.coveredBins} of " +
+                    "${Constants.STATE_MIN_BASELINE_BINS} power ranges, " +
+                    "${baselineStatus.rideCount} of ${Constants.STATE_MIN_BASELINE_RIDES} " +
+                    "rides). Ride steadily with power to build it.$lastUpdated"
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onBackground,
         )
 
         OutlinedButton(
-            onClick = { onResetBaseline() },
+            onClick = { showResetConfirm = true },
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Reset baseline")
@@ -282,6 +306,36 @@ fun MainScreen(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onBackground,
         )
+
+        if (showResetConfirm) {
+            AlertDialog(
+                onDismissRequest = { showResetConfirm = false },
+                title = { Text("Reset baseline?") },
+                text = {
+                    Text(
+                        "This discards everything learned about your normal breathing " +
+                            "at each power. Calibration starts over from your next " +
+                            "steady ride — this cannot be undone.",
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showResetConfirm = false
+                            onResetBaseline()
+                            baselineStatus = loadBaselineStatus()
+                        },
+                    ) {
+                        Text("Reset baseline")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showResetConfirm = false }) {
+                        Text("Cancel")
+                    }
+                },
+            )
+        }
 
         Row(
             verticalAlignment = Alignment.CenterVertically,

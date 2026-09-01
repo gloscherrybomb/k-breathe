@@ -111,6 +111,12 @@ object Constants {
     /** Minimum baseline bins with coverage before deviation is reported. */
     const val STATE_MIN_BASELINE_BINS = 3
 
+    /** Minimum rides folded into the baseline before deviation is reported. A single
+     *  ride satisfies the bin-coverage check on its own, but scoring ride 2 against a
+     *  baseline built entirely from ride 1 compares today with one other day — their
+     *  between-day scatter is as large as the signal this feature exists to show. */
+    const val STATE_MIN_BASELINE_RIDES = 2
+
     /** Drift percentage that counts as "no longer sustainable" for the optional alert. */
     const val STATE_DEFAULT_DRIFT_ALERT_PCT = 12
 
