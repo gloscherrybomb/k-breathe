@@ -52,9 +52,13 @@ class BreathingDriftDataType(extension: String) : DataTypeImpl(extension, "br_dr
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
         val valueSize = config.textSize * 0.6f
         val unitSize = config.textSize * 0.25f
-        val alertPct = context
-            .getSharedPreferences("tymewear_prefs", Context.MODE_PRIVATE)
-            .getInt("drift_alert_pct", Constants.STATE_DEFAULT_DRIFT_ALERT_PCT)
+        val prefs = context.getSharedPreferences("tymewear_prefs", Context.MODE_PRIVATE)
+        val alertPct = prefs.getInt("drift_alert_pct", Constants.STATE_DEFAULT_DRIFT_ALERT_PCT)
+        // A switch that is on-screen but changes nothing misrepresents itself to the
+        // rider — it must have an observable effect, so the colour ramp itself is what
+        // "Alert on breathing drift" turns on. Off, the field still shows the real
+        // percentage; it just stops color-coding it as a warning.
+        val alertEnabled = prefs.getBoolean("drift_alert_enabled", false)
 
         scope.launch {
             VentilatoryState.driftPercent.collect { d ->
@@ -69,7 +73,7 @@ class BreathingDriftDataType(extension: String) : DataTypeImpl(extension, "br_dr
                     R.id.container,
                     "setBackgroundColor",
                     when {
-                        d == null -> Constants.NO_DATA_COLOR
+                        d == null || !alertEnabled -> Constants.NO_DATA_COLOR
                         d >= alertPct -> Constants.ZONE_COLORS_SOLID[4]
                         d >= alertPct * 0.6 -> Constants.ZONE_COLORS_SOLID[3]
                         else -> Constants.ZONE_COLORS_SOLID[0]
