@@ -26,7 +26,7 @@ I really like coffee, so if this enhances your life, please buy me one :)
 | **VE Zones** | Time-in-zone bar chart (5 zones, matching Karoo's built-in HR/Power zone style) |
 | **VE State** | Today's ventilatory efficiency vs your own baseline (Beta). Negative = less breathing for the same power |
 | **VT1 Today** | The power at which you'd cross VT1 today, given how your breathing compares with baseline (Beta) |
-| **BR Drift** | Breathing-rate drift vs the effort's early reference — a live view of the "11–15% and you're done" rule |
+| **BR Drift** | Breathing-rate drift vs the effort's early reference (Beta). Requires a power meter paired to the Karoo — a live view of the "11–15% and you're done" rule |
 
 ## Ventilation Zones
 

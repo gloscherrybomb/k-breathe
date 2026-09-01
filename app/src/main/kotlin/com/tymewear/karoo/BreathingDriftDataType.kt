@@ -30,8 +30,10 @@ class BreathingDriftDataType(extension: String) : DataTypeImpl(extension, "br_dr
             VentilatoryState.driftPercent.collect { d ->
                 // A numeric stream has no way to express absence except NotAvailable —
                 // emitting 0.0 as a placeholder would be indistinguishable from a real
-                // "0% drift" reading downstream.
-                if (d == null) {
+                // "0% drift" reading downstream. Disabled is absence too: onPowerSample
+                // returns early when the Beta feature is off, so d would otherwise sit
+                // frozen at whatever it last was, indistinguishable from a real reading.
+                if (!VentilatoryState.isEnabled() || d == null) {
                     emitter.onNext(StreamState.NotAvailable)
                     return@collect
                 }
@@ -63,9 +65,14 @@ class BreathingDriftDataType(extension: String) : DataTypeImpl(extension, "br_dr
         scope.launch {
             VentilatoryState.driftPercent.collect { d ->
                 val views = RemoteViews(context.packageName, R.layout.view_breathing_drift)
+                val disabled = !VentilatoryState.isEnabled()
                 views.setTextViewText(
                     R.id.text_value,
-                    if (d == null) "--" else String.format("%+.0f%%", d),
+                    when {
+                        disabled -> "off"
+                        d == null -> "--"
+                        else -> String.format("%+.0f%%", d)
+                    },
                 )
                 views.setFloat(R.id.text_value, "setTextSize", valueSize)
                 views.setFloat(R.id.text_unit, "setTextSize", unitSize)
@@ -73,7 +80,7 @@ class BreathingDriftDataType(extension: String) : DataTypeImpl(extension, "br_dr
                     R.id.container,
                     "setBackgroundColor",
                     when {
-                        d == null || !alertEnabled -> Constants.NO_DATA_COLOR
+                        disabled || d == null || !alertEnabled -> Constants.NO_DATA_COLOR
                         d >= alertPct -> Constants.ZONE_COLORS_SOLID[4]
                         d >= alertPct * 0.6 -> Constants.ZONE_COLORS_SOLID[3]
                         else -> Constants.ZONE_COLORS_SOLID[0]

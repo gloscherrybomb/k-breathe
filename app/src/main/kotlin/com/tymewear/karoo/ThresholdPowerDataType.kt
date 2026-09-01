@@ -13,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 /**
@@ -52,19 +53,34 @@ class ThresholdPowerDataType(extension: String) : DataTypeImpl(extension, "thres
         val unitSize = config.textSize * 0.25f
 
         scope.launch {
-            VentilatoryState.vt1PowerW.collect { w ->
+            combine(
+                VentilatoryState.vt1PowerW,
+                VentilatoryState.vt1ThresholdReason,
+            ) { w, reason -> w to reason }.collect { (w, reason) ->
                 val views = RemoteViews(context.packageName, R.layout.view_threshold_power)
+                // "cal" (baseline not confident yet) and "n/a" (baseline is confident
+                // but VT1 falls outside the loads it covers) are different situations
+                // calling for different rider action — see ThresholdReason.
+                val outOfRange = w == null && reason == ThresholdReason.OUT_OF_RANGE
                 views.setTextViewText(
                     R.id.text_value,
                     when {
                         !VentilatoryState.isEnabled() -> "off"
-                        w == null -> "cal"
-                        else -> String.format("%.0f", w)
+                        w != null -> String.format("%.0f", w)
+                        outOfRange -> "n/a"
+                        else -> "cal"
                     },
                 )
                 views.setFloat(R.id.text_value, "setTextSize", valueSize)
                 views.setFloat(R.id.text_unit, "setTextSize", unitSize)
-                views.setTextViewText(R.id.text_unit, if (w == null) "calibrating" else "W VT1 today")
+                views.setTextViewText(
+                    R.id.text_unit,
+                    when {
+                        w != null -> "W VT1 today"
+                        outOfRange -> "VT1 outside learned range"
+                        else -> "calibrating"
+                    },
+                )
                 views.setInt(
                     R.id.container,
                     "setBackgroundColor",
