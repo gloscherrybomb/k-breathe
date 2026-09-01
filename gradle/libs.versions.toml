@@ -11,6 +11,7 @@ glance = "1.1.1"
 kotlinxCoroutines = "1.8.1"
 datastore = "1.1.1"
 timber = "5.0.1"
+junit = "4.13.2"
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -35,6 +36,9 @@ androidx-glance-preview = { group = "androidx.glance", name = "glance-preview", 
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
+
+junit = { module = "junit:junit", version.ref = "junit" }
+kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 
 [bundles]
 androidx-lifecycle = ["androidx-lifecycle-runtime-compose", "androidx-lifecycle-viewmodel-compose"]

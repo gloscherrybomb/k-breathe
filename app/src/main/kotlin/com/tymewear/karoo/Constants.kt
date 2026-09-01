@@ -94,6 +94,12 @@ object Constants {
     /** How often the watchdog checks for data freshness */
     const val BLE_DATA_WATCHDOG_INTERVAL_MS = 10000L
 
+    /** Breathing data older than this is stale: never recorded to FIT and never
+     *  displayed as a live value. Must exceed the longest normal gap between breath
+     *  packets (~4s at rest) with margin, while staying short enough that a dropout
+     *  is caught within a few seconds. */
+    const val BLE_DATA_STALENESS_TIMEOUT_MS = 10000L
+
     /** Initial connect: time to wait for device to appear in a targeted scan
      *  before falling back to autoConnect=true. */
     const val BLE_INITIAL_SCAN_TIMEOUT_MS = 8000L

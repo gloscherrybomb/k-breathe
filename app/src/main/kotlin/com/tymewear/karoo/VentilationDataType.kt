@@ -94,16 +94,21 @@ class VentilationDataType(extension: String) : DataTypeImpl(extension, "ve") {
                     }
                 }
 
+                // Stale data must not be displayed as a live reading — a frozen value
+                // is indistinguishable from a real one on the screen.
+                val fresh = TymewearData.isDataFresh()
+                if (!fresh) synchronized(viewBuffer) { viewBuffer.clear() }
+
                 val avg = synchronized(viewBuffer) {
                     if (viewBuffer.isEmpty()) 0.0
                     else viewBuffer.sum() / viewBuffer.size
                 }
-                val zone = TymewearData.veZone.value
+                val zone = if (fresh) TymewearData.veZone.value else 0
 
                 val remoteViews = RemoteViews(context.packageName, R.layout.view_ventilation)
 
                 // Set VE value text
-                val displayValue = if (avg > 0) String.format("%.1f", avg) else "--"
+                val displayValue = if (fresh && avg > 0) String.format("%.1f", avg) else "--"
                 remoteViews.setTextViewText(R.id.text_value, displayValue)
                 remoteViews.setFloat(R.id.text_value, "setTextSize", valueSize)
                 remoteViews.setFloat(R.id.text_unit, "setTextSize", unitSize)

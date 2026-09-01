@@ -89,6 +89,10 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
                         .distinctUntilChangedBy { it::class }
                         .collect { state ->
                             Timber.d("RideState transition: $state")
+                            // The recorded-data freeze consistently begins within ~2
+                            // minutes of recording starting, so capture BLE/data state
+                            // at each transition to localise the cause.
+                            BleDiagnostics.logRideTransition(state::class.simpleName ?: "?")
                             if (state is RideState.Recording) {
                                 Timber.d("Recording started — re-dispatching RequestBluetooth")
                                 karooSystem.dispatch(RequestBluetooth(extension))
@@ -204,6 +208,15 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
                 .collect { rideState ->
                     when (rideState) {
                         is RideState.Recording -> {
+                            // Never record a stale reading. Breathing packets can stop
+                            // arriving while GATT still reports "connected"; writing the
+                            // last-known value every second produced FIT files with
+                            // hours of frozen VE that looked like real data downstream.
+                            // Omitting the fields leaves an honest gap instead.
+                            if (!TymewearData.isDataFresh()) {
+                                BleDiagnostics.onStaleRecordSkipped()
+                                return@collect
+                            }
                             val br = TymewearData.breathRate.value
                             val tv = TymewearData.tidalVolume.value
                             val ve = TymewearData.minuteVolume.value

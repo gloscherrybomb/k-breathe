@@ -65,6 +65,21 @@ object TymewearData {
     private val _isConnected = MutableStateFlow(false)
     val isConnected: StateFlow<Boolean> = _isConnected.asStateFlow()
 
+    // Tracks whether the values above reflect live sensor data or a stale last-known
+    // reading. A "connected" GATT can stop delivering notifications silently, so
+    // isConnected alone is not enough to trust the numbers.
+    private val freshness = DataFreshness(Constants.BLE_DATA_STALENESS_TIMEOUT_MS)
+
+    /**
+     * True when breathing data is live. Callers that record or display values MUST
+     * check this: writing a stale value produces data indistinguishable from a real
+     * reading, which is how hours of frozen VE ended up in recorded FIT files.
+     */
+    fun isDataFresh(nowMs: Long = System.currentTimeMillis()): Boolean = freshness.isFresh(nowMs)
+
+    /** Age of the newest breathing packet, or null if none has arrived. */
+    fun dataAgeMs(nowMs: Long = System.currentTimeMillis()): Long? = freshness.ageMs(nowMs)
+
     private val _batteryPercent = MutableStateFlow(-1)
     val batteryPercent: StateFlow<Int> = _batteryPercent.asStateFlow()
 
@@ -140,6 +155,7 @@ object TymewearData {
     }
 
     fun update(data: Protocol.BreathingData) {
+        freshness.recordUpdate(System.currentTimeMillis())
         _breathRate.value = data.breathRate
         _tidalVolume.value = data.tidalVolume
         _minuteVolume.value = data.minuteVolume
@@ -201,6 +217,7 @@ object TymewearData {
     fun setDisconnected() {
         _isConnected.value = false
         _batteryPercent.value = -1
+        freshness.reset()
         brBuffer.clear()
         tvBuffer.clear()
         // Zero the user-facing flows so a dropped connection shows "--" instead

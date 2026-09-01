@@ -43,6 +43,14 @@ android {
         compose = true
         buildConfig = true
     }
+    testOptions {
+        unitTests {
+            // Android framework calls in object initialisers (e.g. Constants' use of
+            // android.graphics.Color) return defaults instead of throwing, so pure
+            // logic can be unit-tested on the JVM without Robolectric.
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {
@@ -55,4 +63,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.timber)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlin.test.junit)
 }

@@ -133,9 +133,10 @@ class BleManager(private val context: Context) {
         val closed = AtomicBoolean(false)
         val sessionStartMs = System.currentTimeMillis()
         val firstPacketLogged = AtomicBoolean(false)
-        // Tracks time of last BLE notification for the data watchdog.
-        // Initialized to MAX_VALUE so watchdog doesn't fire before first data arrives.
-        val lastDataTime = AtomicReference(Long.MAX_VALUE)
+        // Detects silent notification loss. Keeps retrying while data is absent —
+        // see DataWatchdog for why a one-shot watchdog let rides record hours of
+        // frozen values.
+        val watchdog = DataWatchdog(Constants.BLE_DATA_WATCHDOG_TIMEOUT_MS)
 
         // Use lateinit lambdas to allow mutual recursion between local functions.
         // (Kotlin local `fun` declarations don't support forward references.)
@@ -171,6 +172,7 @@ class BleManager(private val context: Context) {
         attemptConnect = fn@{ target, autoConnect ->
             if (closed.get()) return@fn
             Timber.d("Connecting GATT to ${target.address} (autoConnect=$autoConnect, attempt=${reconnectAttempt.get()})")
+            BleDiagnostics.onReconnectAttempt(reconnectAttempt.get(), autoConnect)
             // Close any existing GATT before reconnecting — single close point
             gatt.getAndSet(null)?.close()
             // Clear stale descriptor queue from previous connection
@@ -240,7 +242,8 @@ class BleManager(private val context: Context) {
                     value: ByteArray,
                 ) {
                     val now = System.currentTimeMillis()
-                    lastDataTime.set(now)
+                    watchdog.onData(now)
+                    BleDiagnostics.onPacket(now)
                     if (firstPacketLogged.compareAndSet(false, true)) {
                         Timber.d("First data received after ${now - sessionStartMs}ms")
                     }
@@ -254,7 +257,8 @@ class BleManager(private val context: Context) {
                     characteristic: BluetoothGattCharacteristic,
                 ) {
                     val now = System.currentTimeMillis()
-                    lastDataTime.set(now)
+                    watchdog.onData(now)
+                    BleDiagnostics.onPacket(now)
                     if (firstPacketLogged.compareAndSet(false, true)) {
                         Timber.d("First data received after ${now - sessionStartMs}ms")
                     }
@@ -356,19 +360,21 @@ class BleManager(private val context: Context) {
 
         // Data watchdog: detects silent connection loss where GATT stays "connected"
         // but notifications silently stop (radio interference, sensor sleep, firmware bug).
-        // Only activates after first data packet arrives (lastDataTime starts at MAX_VALUE).
+        // Only activates after the first packet arrives, and keeps retrying for as long
+        // as data stays absent — a single failed recovery must not silence it.
         val watchdogRunnable = object : Runnable {
             override fun run() {
                 if (closed.get()) return
-                val last = lastDataTime.get()
+                val now = System.currentTimeMillis()
                 val currentGatt = gatt.get()
-                if (last != Long.MAX_VALUE && currentGatt != null) {
-                    val elapsed = System.currentTimeMillis() - last
-                    if (elapsed > Constants.BLE_DATA_WATCHDOG_TIMEOUT_MS) {
-                        Timber.w("Data watchdog: no notifications for ${elapsed / 1000}s, forcing reconnect")
-                        lastDataTime.set(Long.MAX_VALUE) // reset to avoid rapid re-triggers
-                        currentGatt.disconnect()
-                    }
+                if (currentGatt != null && watchdog.shouldForceReconnect(now)) {
+                    val age = BleDiagnostics.lastPacketAgeMs(now)
+                    Timber.w(
+                        "Data watchdog: no notifications for ${age?.div(1000) ?: "?"}s " +
+                            "(attempt ${watchdog.consecutiveFailures}), forcing reconnect",
+                    )
+                    BleDiagnostics.onWatchdogFire(watchdog.consecutiveFailures)
+                    currentGatt.disconnect()
                 }
                 handler.postDelayed(this, Constants.BLE_DATA_WATCHDOG_INTERVAL_MS)
             }
