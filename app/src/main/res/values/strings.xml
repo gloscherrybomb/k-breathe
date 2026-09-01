@@ -22,4 +22,13 @@
 
     <string name="ve_zones_name">VE Zones</string>
     <string name="ve_zones_desc">Time spent in each ventilation zone</string>
+
+    <string name="vent_state_name">Vent State</string>
+    <string name="vent_state_desc">Beta. Today\'s ventilatory efficiency vs. your own baseline</string>
+
+    <string name="threshold_power_name">VT1 Power</string>
+    <string name="threshold_power_desc">Beta. Estimated power at today\'s ventilatory threshold</string>
+
+    <string name="br_drift_name">BR Drift</string>
+    <string name="br_drift_desc">Breathing rate drift vs. this effort\'s early reference</string>
 </resources>
