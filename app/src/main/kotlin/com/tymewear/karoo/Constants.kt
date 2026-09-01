@@ -105,6 +105,16 @@ object Constants {
     const val BLE_INITIAL_SCAN_TIMEOUT_MS = 8000L
 
     // -------------------------------------------------------------------------
+    // Ventilatory state (Beta)
+    // -------------------------------------------------------------------------
+
+    /** Minimum baseline bins with coverage before deviation is reported. */
+    const val STATE_MIN_BASELINE_BINS = 3
+
+    /** Drift percentage that counts as "no longer sustainable" for the optional alert. */
+    const val STATE_DEFAULT_DRIFT_ALERT_PCT = 12
+
+    // -------------------------------------------------------------------------
     // Data bounds (for protocol validation)
     // -------------------------------------------------------------------------
 

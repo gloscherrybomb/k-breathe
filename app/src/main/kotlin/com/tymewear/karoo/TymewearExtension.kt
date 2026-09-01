@@ -80,6 +80,20 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
                     }
                 }
 
+                VentilatoryState.load(applicationContext)
+
+                // Power is the load signal for ventilatory state. Same pattern as the
+                // heart-rate stream above; absent power simply yields no samples.
+                scope.launch {
+                    karooSystem.streamDataFlow(DataType.Type.POWER).collect { state ->
+                        when (state) {
+                            is StreamState.Streaming ->
+                                VentilatoryState.onPowerSample(state.dataPoint.singleValue)
+                            else -> VentilatoryState.onPowerSample(null)
+                        }
+                    }
+                }
+
                 // Second RideState consumer (first is in startFit). Intentional: this
                 // one is for BT-arbitration defense; the other writes FIT records.
                 // Dedupe by class so we only react to actual state transitions, not
@@ -96,6 +110,10 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
                             if (state is RideState.Recording) {
                                 Timber.d("Recording started — re-dispatching RequestBluetooth")
                                 karooSystem.dispatch(RequestBluetooth(extension))
+                                VentilatoryState.onRideStart()
+                            }
+                            if (state is RideState.Idle) {
+                                VentilatoryState.onRideEnd(applicationContext)
                             }
                         }
                 }
