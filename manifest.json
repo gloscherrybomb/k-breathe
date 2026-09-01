@@ -3,9 +3,9 @@
   "packageName": "com.tymewear.karoo",
   "iconUrl": "https://github.com/gloscherrybomb/k-breathe/releases/latest/download/icon.png",
   "latestApkUrl": "https://github.com/gloscherrybomb/k-breathe/releases/latest/download/k-breathe.apk",
-  "latestVersion": "0.4.3",
-  "latestVersionCode": 9,
+  "latestVersion": "0.5.0",
+  "latestVersionCode": 10,
   "developer": "gloscherrybomb",
-  "description": "Displays live breathing data from the Tymewear VitalPro sensor on your Karoo. Includes VE, breathing rate, tidal volume, mobilization index, VE graph, and time-in-zones fields with FIT recording.",
-  "releaseNotes": "Diagnostic + defensive patch addressing the \"second-ride freeze\" pattern reported on Karoo 3. Three changes: (1) dropped connections now show \"--\" on data fields instead of the last cached value, so disconnects are visible; (2) Bluetooth ownership is re-requested on every ride start, defending against Karoo's BT arbitration silently revoking the extension's slot; (3) extra log lines for forensic capture via adb logcat. This release does not claim to fix the underlying connection issue — it makes it visible and adds defensive plumbing while we gather diagnostic data from affected users."
+  "description": "Displays live breathing data from the Tymewear VitalPro sensor on your Karoo. Includes VE, breathing rate, tidal volume, mobilization index, VE graph and time-in-zones fields with FIT recording, plus an opt-in Beta that learns your own ventilation baseline and shows how today differs from it.",
+  "releaseNotes": "Fixes silent corruption of recorded breathing data (previous versions wrote a frozen or zero value for most of every ride after a strap dropout), a connection watchdog that could only fire once, and Bluetooth scans being refused by Android without any log. Live fields now show -- when the strap drops instead of a stale number. NEW (Beta, OFF by default): Ventilatory State - learns your normal ventilation at each power and shows today's deviation from it, today's VT1 power, and breathing-rate drift. Enable under Ventilatory State (Beta) in the app; requires a paired power meter; the first two rides calibrate and show 'cal', ride three onwards shows values. Settings are preserved on upgrade."
 }
