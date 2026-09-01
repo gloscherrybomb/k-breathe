@@ -49,15 +49,18 @@ fun MainScreen(
     onSave: (PrefsData) -> Unit,
     loadPrefs: () -> PrefsData,
 ) {
+    // Seeded from Constants so these placeholders cannot drift away from the values
+    // the rest of the app actually falls back to. They are replaced by the stored
+    // preferences in LaunchedEffect below.
     var sensorId by remember { mutableStateOf("") }
-    var vt1 by remember { mutableStateOf("83") }
-    var vt2 by remember { mutableStateOf("111") }
-    var topZ4 by remember { mutableStateOf("128") }
-    var vo2max by remember { mutableStateOf("180") }
-    var restingBr by remember { mutableStateOf("12") }
-    var maxBr by remember { mutableStateOf("55") }
-    var maxHr by remember { mutableStateOf("190") }
-    var restingHr by remember { mutableStateOf("60") }
+    var vt1 by remember { mutableStateOf(Constants.DEFAULT_VT1.toString()) }
+    var vt2 by remember { mutableStateOf(Constants.DEFAULT_VT2.toString()) }
+    var topZ4 by remember { mutableStateOf(Constants.DEFAULT_TOP_Z4.toString()) }
+    var vo2max by remember { mutableStateOf(Constants.DEFAULT_VO2MAX.toString()) }
+    var restingBr by remember { mutableStateOf(Constants.DEFAULT_RESTING_BR.toString()) }
+    var maxBr by remember { mutableStateOf(Constants.DEFAULT_MAX_BR.toString()) }
+    var maxHr by remember { mutableStateOf(Constants.DEFAULT_MAX_HR.toString()) }
+    var restingHr by remember { mutableStateOf(Constants.DEFAULT_RESTING_HR.toString()) }
     var saved by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf<String?>(null) }
     val isConnected by TymewearData.isConnected.collectAsState()

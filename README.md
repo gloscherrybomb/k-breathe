@@ -27,17 +27,25 @@ I really like coffee, so if this enhances your life, please buy me one :)
 
 ## Ventilation Zones
 
-Five zones based on ventilation thresholds:
+Five zones, bounded by your own ventilatory thresholds:
 
-| Zone | Name | Default VE (L/min) | Color |
-|------|------|---------------------|-------|
-| Z1 | Endurance | < 83 | Teal |
-| Z2 | VT1 | 83 - 111 | Blue |
-| Z3 | VT2 | 111 - 128 | Amber |
-| Z4 | Top Z4 | 128 - 180 | Orange |
-| Z5 | VO2Max | > 180 | Red |
+| Zone | Name | Range | Color |
+|------|------|-------|-------|
+| Z1 | Endurance | below VT1 | Teal |
+| Z2 | VT1 | VT1 – VT2 | Blue |
+| Z3 | VT2 | VT2 – Top Z4 | Amber |
+| Z4 | Top Z4 | Top Z4 – VO2max | Orange |
+| Z5 | VO2Max | above VO2max | Red |
 
-Zone thresholds are configurable via SharedPreferences.
+**Set your own thresholds before relying on the zones.** Ventilation is highly
+individual — the VE at which you cross VT1 depends on your physiology, not on a
+number that suits everyone. The app ships with placeholder values purely so the
+fields render something on first run; they are not a recommendation.
+
+Get your values from a [Tymewear threshold test](https://www.tymewear.com/blogs/startup-guides/threshold-test),
+then enter them under **Ventilation Zone Thresholds** in the K-Breathe app
+(VT1, VT2, Top Z4, VO2max, in L/min). Thresholds drift with fitness, so retest
+periodically — Tymewear suggest every 6–8 weeks.
 
 ## FIT Recording
 
