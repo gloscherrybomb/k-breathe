@@ -15,10 +15,13 @@ package com.tymewear.karoo
  * or irregular if power delivery stalls). A window defined by sample count would silently
  * stretch to minutes if the data source slowed. Time-scoping ensures predictable latency.
  *
- * Timestamps are anchored on the newest timestamp ever seen. Samples with timestamps
- * earlier than that newest are rejected to maintain monotonicity — a clock jump backwards
- * (due to sync, etc.) cannot poison the current window with stale data. Eviction happens
- * in `add()` as well as `driftPercent()` to prevent unbounded accumulation.
+ * Timestamps are anchored on the newest timestamp ever seen. Small out-of-order samples
+ * (within CLOCK_JITTER_TOLERANCE) are rejected as transient jitter (BLE reordering, etc.).
+ * Large backwards jumps (> CLOCK_JITTER_TOLERANCE) indicate a genuine clock correction
+ * (device boot time wrong, later sync fixed it). Silently stalling on a sustained correction
+ * is worse than restarting: we reset all state and rebuild from the corrected time. This
+ * ensures the rider sees the drift figure restart rather than go dead. Eviction happens in
+ * `add()` as well as `driftPercent()` to prevent unbounded accumulation.
  */
 class DriftTracker(
     private val referenceSeconds: Int = DEFAULT_REFERENCE_SECONDS,
@@ -32,6 +35,16 @@ class DriftTracker(
     private val current = ArrayDeque<Pair<Long, Double>>()
 
     fun add(nowMs: Long, value: Double) {
+        // Detect large backwards clock jump (genuine correction, not transient jitter).
+        // A sustained correction means all future samples would be rejected forever,
+        // silently stalling the ride. Instead, reset and restart from the corrected time.
+        if (newestTimestampSeen != Long.MIN_VALUE && nowMs < newestTimestampSeen &&
+            newestTimestampSeen - nowMs > CLOCK_JITTER_TOLERANCE_MS) {
+            // Clock was corrected backwards significantly. Reset state to restart from this sample.
+            reset()
+            startMs = nowMs  // Begin the ride anew from the corrected time
+        }
+
         val start = startMs ?: nowMs.also { startMs = it }
         val elapsedS = (nowMs - start) / 1000
 
@@ -42,10 +55,12 @@ class DriftTracker(
             if (elapsedS >= warmupSeconds + referenceSeconds - 1) {
                 referenceMean = referenceValues.average()
             }
+            // Track latest timestamp for clock-jump detection during reference building
+            newestTimestampSeen = maxOf(newestTimestampSeen, nowMs)
             return
         }
 
-        // Reject samples with timestamps earlier than the newest seen (clock went backwards)
+        // Reject small backwards jitter (transient out-of-order delivery)
         if (nowMs < newestTimestampSeen) return
 
         newestTimestampSeen = nowMs
@@ -94,5 +109,9 @@ class DriftTracker(
         const val DEFAULT_WARMUP_SECONDS = 60
         // Hard size limit to prevent unbounded growth under pathological input
         private const val MAX_BUFFER_SIZE = 1000
+        // Threshold between transient jitter and genuine clock correction (milliseconds).
+        // BLE out-of-order delivery is typically sub-second; a genuine correction (e.g., device
+        // boot time wrong, later sync fixes it) is much larger. Above this threshold, we reset.
+        private const val CLOCK_JITTER_TOLERANCE_MS = 2000L
     }
 }

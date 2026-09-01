@@ -101,34 +101,112 @@ class DriftTrackerTest {
     }
 
     @Test
-    fun `backwards timestamp is rejected to prevent stale data in window`() {
-        // When system clock jumps backwards (sync, etc.), a sample with an older timestamp
-        // must not corrupt the window. This test feeds normal samples, then a backwards one.
+    fun `backwards timestamp within tolerance is rejected as jitter`() {
+        // When system clock has transient jitter (BLE reordering, etc.), a sample with
+        // a slightly older timestamp must be rejected as jitter, not added to window.
+        // This proves the tolerance mechanism works: small jumps rejected, large ones reset.
         val t = DriftTracker(referenceSeconds = 2, currentSeconds = 5, warmupSeconds = 0)
 
         // Build and seal reference with samples at t=0, t=4s, mean = 20
         t.add(0L, 20.0)
         t.add(4000L, 20.0)
 
-        // Add current samples: t=8s, t=12s, t=16s (all value 20)
+        // Add current samples: t=8s, t=12s, t=16s, t=20s (all value 20)
         t.add(8000L, 20.0)
         t.add(12000L, 20.0)
         t.add(16000L, 20.0)
+        t.add(20000L, 20.0)
 
         // At t=20s, drift should be 0 (all value 20)
-        t.add(20000L, 20.0)
         var drift = t.driftPercent()
         assertEquals("drift should be 0 with homogeneous current window", 0.0, drift!!, 0.001)
 
-        // Simulate backwards time jump: sample at t=10s (earlier than t=20s)
-        // This should be rejected, not added to current window
-        t.add(10000L, 50.0)
+        // Simulate transient backwards time jitter: sample at t=19.5s (500ms backward)
+        // This is well within CLOCK_JITTER_TOLERANCE (2000ms), so rejected, not reset
+        t.add(19500L, 50.0)
 
-        // Drift should still be 0 because the t=10s:50.0 sample was rejected
+        // Drift should still be 0 because the jittered sample was rejected
         drift = t.driftPercent()
         assertEquals(
-            "backwards timestamp should be rejected; drift must remain 0, not become contaminated",
+            "backwards timestamp within tolerance should be rejected as jitter",
             0.0, drift!!, 0.001
         )
+    }
+
+    @Test
+    fun `sustained clock correction after reporting triggers reset and recovery`() {
+        // Build reference and current window reporting normally
+        val t = DriftTracker(referenceSeconds = 2, currentSeconds = 5, warmupSeconds = 0)
+
+        // Build reference at t=0,4s with value 20
+        t.add(0L, 20.0)
+        t.add(4000L, 20.0)
+
+        // Current phase reporting normally at t=8s, 12s, 16s, 20s with value 25
+        t.add(8000L, 25.0)
+        t.add(12000L, 25.0)
+        t.add(16000L, 25.0)
+        t.add(20000L, 25.0)
+
+        // Verify we're reporting drift
+        var drift = t.driftPercent()
+        assertTrue("tracker should report drift before clock jump", drift != null && drift > 0)
+
+        // Sustained clock correction: time jumps back by 10 seconds (well above 2s tolerance)
+        // This simulates device clock corrected downward after sync (e.g., was far in future)
+        // Feed samples at the corrected time: now t=10s (was 20s, jumped back 10s)
+        // Continue with new samples at 14s, 18s, 22s (all at corrected time, far in past)
+        t.add(10000L, 30.0)  // Jump back triggers reset; this sample starts fresh
+        t.add(14000L, 30.0)
+        t.add(18000L, 30.0)
+        t.add(22000L, 30.0)
+
+        // Tracker should have recovered and rebuilt reference, now reporting new drift
+        drift = t.driftPercent()
+        assertTrue(
+            "tracker should recover from sustained clock correction and report again (not null forever)",
+            drift != null
+        )
+        // New reference built from samples after reset; new current window reports drift from new reference
+        // Reference is now ~30, current is 30, so drift should be ~0%
+        assertEquals("after recovery, drift should stabilize at new reference level", 0.0, drift!!, 5.0)
+    }
+
+    @Test
+    fun `clock reset during reference building triggers recovery`() {
+        // Test that a large backwards jump during reference building triggers reset,
+        // allowing the reference to be rebuilt from the corrected time.
+        val t = DriftTracker(referenceSeconds = 2, currentSeconds = 5, warmupSeconds = 0)
+
+        // Build and seal reference: samples at t=0, t=4s (seals at elapsedS >= 1)
+        t.add(0L, 20.0)
+        t.add(4000L, 20.0)  // elapsedS=4, reference seals (4 >= 1)
+
+        // Add current samples
+        t.add(8000L, 20.0)
+        t.add(12000L, 20.0)
+
+        // Verify tracker is reporting
+        var drift = t.driftPercent()
+        assertTrue("tracker should be reporting initially", drift != null)
+
+        // Sustained clock correction: sample arrives at t=1000 (after already seeing t=12000)
+        // Difference is 11000ms > 2000ms tolerance, triggers reset
+        t.add(1000L, 20.0)
+
+        // After reset, startMs = 1000, newestTimestampSeen = Long.MIN_VALUE
+        // This sample is now at elapsedS = 0, which is < warmupSeconds, so dropped
+
+        // Next sample at t=5000: elapsedS = 4 >= 1, reference seals again
+        t.add(5000L, 20.0)
+
+        // Current sample at t=9000
+        t.add(9000L, 30.0)
+
+        // Tracker should have recovered and be reporting new drift
+        drift = t.driftPercent()
+        assertTrue("tracker should recover and report after clock reset", drift != null)
+        // New reference is 20, new current is 30, so drift = 50%
+        assertEquals("drift should reflect new data after recovery", 50.0, drift!!, 1.0)
     }
 }
