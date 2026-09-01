@@ -23,6 +23,9 @@ object BleDiagnostics {
     private val reconnects = AtomicInteger(0)
     private val staleRecordsSkipped = AtomicLong(0)
     private val lastSummaryMs = AtomicLong(0)
+    private val scanStarts = AtomicInteger(0)
+    private val scanDeferrals = AtomicInteger(0)
+    private val scanFailures = AtomicInteger(0)
 
     /** Packets counted since the last summary, to show whether flow has stopped. */
     private val packetsSinceSummary = AtomicLong(0)
@@ -45,6 +48,37 @@ object BleDiagnostics {
     fun onReconnectAttempt(attempt: Int, autoConnect: Boolean) {
         reconnects.incrementAndGet()
         Timber.d("DIAG reconnect attempt #$attempt (autoConnect=$autoConnect)")
+    }
+
+    /**
+     * Periodic heartbeat from the watchdog thread. The summary must not depend on
+     * packets arriving, or it falls silent during exactly the dropouts it exists to
+     * document.
+     */
+    fun tick(nowMs: Long) {
+        maybeLogSummary(nowMs)
+    }
+
+    fun onScanStart() {
+        scanStarts.incrementAndGet()
+    }
+
+    /**
+     * A scan start held back to stay inside Android's scan-rate budget. Exceeding it
+     * makes the platform refuse to scan silently, so these are worth seeing.
+     */
+    fun onScanDeferred(waitMs: Long) {
+        val n = scanDeferrals.incrementAndGet()
+        Timber.w("DIAG scan deferred #$n (waiting ${waitMs}ms for scan-rate budget)")
+    }
+
+    fun onScanFailed(errorCode: Int) {
+        scanFailures.incrementAndGet()
+        Timber.w(
+            "DIAG scan failure #${scanFailures.get()} code=$errorCode " +
+                "(${BleStatus.decodeScan(errorCode)}); starts=${scanStarts.get()} " +
+                "deferrals=${scanDeferrals.get()}",
+        )
     }
 
     /** A FIT record that omitted breathing fields because the data was stale. */
@@ -79,10 +113,13 @@ object BleDiagnostics {
         if (!lastSummaryMs.compareAndSet(last, nowMs)) return
         if (last == 0L) return // skip the first, no interval to report over
         val inWindow = packetsSinceSummary.getAndSet(0)
+        val age = lastPacketAgeMs(nowMs)
         Timber.d(
             "DIAG ${SUMMARY_INTERVAL_MS / 1000}s summary: packets=$inWindow " +
+                "lastPacketAge=${age?.let { "${it}ms" } ?: "never"} " +
                 "(total=${packets.get()}) watchdogFires=${watchdogFires.get()} " +
-                "reconnects=${reconnects.get()} staleSkipped=${staleRecordsSkipped.get()}",
+                "reconnects=${reconnects.get()} staleSkipped=${staleRecordsSkipped.get()} " +
+                "scans=${scanStarts.get()}/deferred=${scanDeferrals.get()}/failed=${scanFailures.get()}",
         )
     }
 
@@ -95,6 +132,9 @@ object BleDiagnostics {
         reconnects.set(0)
         staleRecordsSkipped.set(0)
         lastSummaryMs.set(0)
+        scanStarts.set(0)
+        scanDeferrals.set(0)
+        scanFailures.set(0)
     }
 
     private const val SUMMARY_INTERVAL_MS = 60_000L

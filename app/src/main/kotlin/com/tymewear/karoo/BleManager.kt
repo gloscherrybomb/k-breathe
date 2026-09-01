@@ -58,6 +58,13 @@ class BleManager(private val context: Context) {
     )
 
     /**
+     * Shared across every scan path in this manager, because Android's scan-rate budget
+     * is per-application: discovery scans and targeted reconnect scans draw on the same
+     * allowance and would otherwise exhaust it between them.
+     */
+    private val scanThrottle = ScanThrottle()
+
+    /**
      * Scan for VitalPro BLE devices. Emits devices matching the name pattern.
      * Optionally filters by a specific sensor ID.
      */
@@ -99,16 +106,44 @@ class BleManager(private val context: Context) {
 
             override fun onScanFailed(errorCode: Int) {
                 Timber.e("BLE scan failed: ${BleStatus.decodeScan(errorCode)}")
+                BleDiagnostics.onScanFailed(errorCode)
                 close(Exception("BLE scan failed: $errorCode"))
             }
         }
 
-        Timber.d("Starting BLE scan (sensorId=$sensorId)")
-        scanner.startScan(filters, settings, callback)
+        // The Karoo drives startScan/stopScan and has been seen calling them ~10 times
+        // in 12s. Exceeding the platform's scan-rate budget makes Android silently
+        // refuse to scan at all, so defer instead of burning a rejected registration.
+        val handler = Handler(Looper.getMainLooper())
+        val started = AtomicBoolean(false)
+        lateinit var startWhenAllowed: () -> Unit
+        startWhenAllowed = {
+            val now = System.currentTimeMillis()
+            if (scanThrottle.tryAcquire(now)) {
+                Timber.d("Starting BLE scan (sensorId=$sensorId)")
+                BleDiagnostics.onScanStart()
+                started.set(true)
+                scanner.startScan(filters, settings, callback)
+            } else {
+                val wait = scanThrottle.delayUntilAllowedMs(now)
+                Timber.w(
+                    "Scan rate budget reached (${scanThrottle.recentStarts(now)} starts in " +
+                        "${ScanThrottle.DEFAULT_WINDOW_MS / 1000}s) — deferring scan ${wait}ms",
+                )
+                BleDiagnostics.onScanDeferred(wait)
+                handler.postDelayed({ startWhenAllowed() }, wait + 50L)
+            }
+        }
+        startWhenAllowed()
 
         awaitClose {
-            Timber.d("Stopping BLE scan")
-            scanner.stopScan(callback)
+            handler.removeCallbacksAndMessages(null)
+            if (started.get()) {
+                Timber.d("Stopping BLE scan")
+                scanner.stopScan(callback)
+            } else {
+                Timber.d("Scan cancelled before it started (was deferred)")
+            }
         }
     }
 
@@ -348,9 +383,25 @@ class BleManager(private val context: Context) {
                         }
                     }
 
-                    Timber.d("Starting targeted scan for $address (${Constants.BLE_INITIAL_SCAN_TIMEOUT_MS / 1000}s timeout)")
-                    scanner.startScan(listOf(filter), settings, cb)
-                    handler.postDelayed(timeoutRunnable, Constants.BLE_INITIAL_SCAN_TIMEOUT_MS)
+                    // Draws on the same per-app scan budget as discovery scans. If it is
+                    // exhausted, skip straight to autoConnect rather than issue a start
+                    // the platform will silently reject.
+                    val nowMs = System.currentTimeMillis()
+                    if (scanThrottle.tryAcquire(nowMs)) {
+                        Timber.d("Starting targeted scan for $address (${Constants.BLE_INITIAL_SCAN_TIMEOUT_MS / 1000}s timeout)")
+                        BleDiagnostics.onScanStart()
+                        scanner.startScan(listOf(filter), settings, cb)
+                        handler.postDelayed(timeoutRunnable, Constants.BLE_INITIAL_SCAN_TIMEOUT_MS)
+                    } else {
+                        val wait = scanThrottle.delayUntilAllowedMs(nowMs)
+                        Timber.w(
+                            "Scan rate budget reached — skipping targeted scan for $address " +
+                                "(next slot in ${wait}ms), using autoConnect=true instead",
+                        )
+                        BleDiagnostics.onScanDeferred(wait)
+                        activeScanCallback.compareAndSet(cb, null)
+                        attemptConnect(device, true)
+                    }
                 }
             }
         }
@@ -366,6 +417,9 @@ class BleManager(private val context: Context) {
             override fun run() {
                 if (closed.get()) return
                 val now = System.currentTimeMillis()
+                // Heartbeat so the diagnostics summary keeps reporting through a dropout,
+                // when no packets are arriving to drive it.
+                BleDiagnostics.tick(now)
                 val currentGatt = gatt.get()
                 if (currentGatt != null && watchdog.shouldForceReconnect(now)) {
                     val age = BleDiagnostics.lastPacketAgeMs(now)
