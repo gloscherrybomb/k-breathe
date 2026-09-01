@@ -11,7 +11,7 @@ class SteadyStateDetectorTest {
     private fun feed(f: RideFixture, d: SteadyStateDetector = SteadyStateDetector()): List<LoadVeSample> {
         val out = ArrayList<LoadVeSample>()
         for (i in f.watts.indices) {
-            d.onSample(f.watts[i], f.ve[i])?.let { out.add(it) }
+            d.onSample(f.watts[i], f.ve[i], i * 1000L)?.let { out.add(it) }
         }
         return out
     }
@@ -19,14 +19,14 @@ class SteadyStateDetectorTest {
     @Test
     fun `emits nothing until the window is populated`() {
         val d = SteadyStateDetector()
-        repeat(44) { assertNull(d.onSample(200.0, 60.0)) }
+        repeat(44) { i -> assertNull(d.onSample(200.0, 60.0, i * 1000L)) }
     }
 
     @Test
     fun `emits once power has been stable for the window`() {
         val d = SteadyStateDetector()
         var last: LoadVeSample? = null
-        repeat(60) { last = d.onSample(200.0, 60.0) ?: last }
+        repeat(60) { i -> last = d.onSample(200.0, 60.0, i * 1000L) ?: last }
         assertNotNull("steady power should produce a sample", last)
         assertEquals(200.0, last!!.loadW, 0.001)
     }
@@ -37,7 +37,7 @@ class SteadyStateDetectorTest {
         // Alternating 100/300W: mean 200, cv ~0.5, far above the 0.12 threshold.
         var emitted = 0
         repeat(200) { i ->
-            if (d.onSample(if (i % 2 == 0) 100.0 else 300.0, 60.0) != null) emitted++
+            if (d.onSample(if (i % 2 == 0) 100.0 else 300.0, 60.0, i * 1000L) != null) emitted++
         }
         assertEquals(0, emitted)
     }
@@ -46,7 +46,7 @@ class SteadyStateDetectorTest {
     fun `ignores samples outside the usable power range`() {
         val d = SteadyStateDetector()
         var emitted = 0
-        repeat(200) { if (d.onSample(60.0, 30.0) != null) emitted++ }   // below minLoadW
+        repeat(200) { i -> if (d.onSample(60.0, 30.0, i * 1000L) != null) emitted++ }   // below minLoadW
         assertEquals(0, emitted)
     }
 
@@ -56,9 +56,36 @@ class SteadyStateDetectorTest {
         var emitted = 0
         repeat(200) { i ->
             val w = if (i % 10 == 0) null else 200.0     // 10% dropouts
-            if (d.onSample(w, 60.0) != null) emitted++
+            if (d.onSample(w, 60.0, i * 1000L) != null) emitted++
         }
         assertTrue("occasional nulls must not disable detection", emitted > 0)
+    }
+
+    @Test
+    fun `a large gap in wall-clock time clears the window`() {
+        val d = SteadyStateDetector()
+        // Warm up to steady state at 1 Hz.
+        repeat(60) { i -> d.onSample(200.0, 60.0, i * 1000L) }
+        assertNotNull("should be steady before the gap", d.onSample(200.0, 60.0, 60_000L))
+
+        // A two-minute power outage: the collector sends a single onPowerSample(null),
+        // then real samples resume. Without gap detection, ~59 pre-gap samples plus one
+        // post-gap sample would immediately satisfy the window and CV gate again.
+        d.onSample(null, 60.0, 61_000L)
+
+        // First sample after the gap: window was cleared, so this alone cannot be steady.
+        assertNull(
+            "one post-gap sample must not stitch onto the pre-gap window",
+            d.onSample(200.0, 60.0, 181_000L),
+        )
+        // And the detector must still need a full fresh window before emitting again —
+        // one post-gap sample already landed above, so 43 more (44 total) stays one
+        // short of minSamplesInWindow (45).
+        var emitted = 0
+        for (i in 0 until 43) {
+            if (d.onSample(200.0, 60.0, 181_000L + 1000L + i * 1000L) != null) emitted++
+        }
+        assertEquals("window must rebuild from scratch after the gap", 0, emitted)
     }
 
     @Test
@@ -92,12 +119,12 @@ class SteadyStateDetectorTest {
     fun `sustained stale VE must not emit a frozen average`() {
         val d = SteadyStateDetector()
         // Warm up: steady power with real VE until the window would normally emit.
-        repeat(60) { d.onSample(200.0, 60.0) }
+        repeat(60) { i -> d.onSample(200.0, 60.0, i * 1000L) }
         // Now VE goes stale (null) for a long stretch while power stays rock steady —
         // this is exactly a sensor dropout mid-effort. No sample must be comparable
         // until fresh VE has re-accumulated, or it would be a frozen pre-dropout value.
         var emitted = 0
-        repeat(200) { i -> if (d.onSample(200.0, null) != null) emitted++ }
+        repeat(200) { i -> if (d.onSample(200.0, null, 60_000L + i * 1000L) != null) emitted++ }
         assertEquals("stale VE during steady power must never emit a sample", 0, emitted)
     }
 }

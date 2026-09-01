@@ -11,14 +11,14 @@ class DriftTrackerTest {
     fun `reports nothing during warmup`() {
         val t = DriftTracker(referenceSeconds = 10, currentSeconds = 5, warmupSeconds = 3)
         t.add(0L, 20.0)
-        assertNull(t.driftPercent())
+        assertNull(t.driftPercent(0L))
     }
 
     @Test
     fun `zero drift when breathing is unchanged`() {
         val t = DriftTracker(referenceSeconds = 10, currentSeconds = 5, warmupSeconds = 0)
         for (s in 0 until 40) t.add(s * 1000L, 20.0)
-        assertEquals(0.0, t.driftPercent()!!, 0.001)
+        assertEquals(0.0, t.driftPercent(39_000L)!!, 0.001)
     }
 
     @Test
@@ -26,7 +26,7 @@ class DriftTrackerTest {
         val t = DriftTracker(referenceSeconds = 10, currentSeconds = 5, warmupSeconds = 0)
         for (s in 0 until 10) t.add(s * 1000L, 20.0)          // reference: 20
         for (s in 30 until 40) t.add(s * 1000L, 23.0)         // current: 23
-        assertEquals(15.0, t.driftPercent()!!, 0.5)
+        assertEquals(15.0, t.driftPercent(39_000L)!!, 0.5)
     }
 
     @Test
@@ -34,7 +34,7 @@ class DriftTrackerTest {
         val t = DriftTracker(referenceSeconds = 10, currentSeconds = 5, warmupSeconds = 0)
         for (s in 0 until 10) t.add(s * 1000L, 20.0)
         for (s in 30 until 40) t.add(s * 1000L, 18.0)
-        assertTrue(t.driftPercent()!! < 0.0)
+        assertTrue(t.driftPercent(39_000L)!! < 0.0)
     }
 
     @Test
@@ -43,7 +43,7 @@ class DriftTrackerTest {
         val t = DriftTracker(referenceSeconds = 10, currentSeconds = 5, warmupSeconds = 0)
         for (s in 0 until 10) t.add(s * 1000L, 20.0)
         for (s in 10 until 60) t.add(s * 1000L, 30.0)
-        assertEquals("reference should still be 20", 50.0, t.driftPercent()!!, 1.0)
+        assertEquals("reference should still be 20", 50.0, t.driftPercent(59_000L)!!, 1.0)
     }
 
     @Test
@@ -51,7 +51,7 @@ class DriftTrackerTest {
         val t = DriftTracker(referenceSeconds = 10, currentSeconds = 5, warmupSeconds = 0)
         for (s in 0 until 40) t.add(s * 1000L, 20.0)
         t.reset()
-        assertNull(t.driftPercent())
+        assertNull(t.driftPercent(39_000L))
     }
 
     @Test
@@ -59,8 +59,9 @@ class DriftTrackerTest {
         val f = RideFixture.load("ride_2026-03-29.csv")
         val t = DriftTracker()
         var s = 0L
-        for (v in f.br) { if (v != null && v > 0) t.add(s * 1000L, v); s++ }
-        val d = t.driftPercent()
+        var lastMs = 0L
+        for (v in f.br) { if (v != null && v > 0) { t.add(s * 1000L, v); lastMs = s * 1000L }; s++ }
+        val d = t.driftPercent(lastMs)
         assertTrue("expected a drift value for a 75-minute ride", d != null)
         assertTrue("drift should be within a sane range, got $d", d!! > -50.0 && d < 100.0)
     }
@@ -88,7 +89,7 @@ class DriftTrackerTest {
         // Switch to value 30 at t=36000ms
         t.add(36000L, 30.0)
 
-        val drift = t.driftPercent()
+        val drift = t.driftPercent(36000L)
         assertTrue("expected drift to be computed", drift != null)
 
         // Time-based window bounds to 8 seconds, holding ~3 samples.
@@ -118,7 +119,7 @@ class DriftTrackerTest {
         t.add(20000L, 20.0)
 
         // At t=20s, drift should be 0 (all value 20)
-        var drift = t.driftPercent()
+        var drift = t.driftPercent(20000L)
         assertEquals("drift should be 0 with homogeneous current window", 0.0, drift!!, 0.001)
 
         // Simulate transient backwards time jitter: sample at t=19.5s (500ms backward)
@@ -126,7 +127,7 @@ class DriftTrackerTest {
         t.add(19500L, 50.0)
 
         // Drift should still be 0 because the jittered sample was rejected
-        drift = t.driftPercent()
+        drift = t.driftPercent(20000L)
         assertEquals(
             "backwards timestamp within tolerance should be rejected as jitter",
             0.0, drift!!, 0.001
@@ -149,7 +150,7 @@ class DriftTrackerTest {
         t.add(20000L, 25.0)
 
         // Verify we're reporting drift
-        var drift = t.driftPercent()
+        var drift = t.driftPercent(20000L)
         assertTrue("tracker should report drift before clock jump", drift != null && drift > 0)
 
         // Sustained clock correction: time jumps back by 10 seconds (well above 2s tolerance)
@@ -162,7 +163,7 @@ class DriftTrackerTest {
         t.add(22000L, 30.0)
 
         // Tracker should have recovered and rebuilt reference, now reporting new drift
-        drift = t.driftPercent()
+        drift = t.driftPercent(22000L)
         assertTrue(
             "tracker should recover from sustained clock correction and report again (not null forever)",
             drift != null
@@ -187,7 +188,7 @@ class DriftTrackerTest {
         t.add(12000L, 20.0)
 
         // Verify tracker is reporting
-        var drift = t.driftPercent()
+        var drift = t.driftPercent(12000L)
         assertTrue("tracker should be reporting initially", drift != null)
 
         // Sustained clock correction: sample arrives at t=1000 (after already seeing t=12000)
@@ -204,9 +205,28 @@ class DriftTrackerTest {
         t.add(9000L, 30.0)
 
         // Tracker should have recovered and be reporting new drift
-        drift = t.driftPercent()
+        drift = t.driftPercent(9000L)
         assertTrue("tracker should recover and report after clock reset", drift != null)
         // New reference is 20, new current is 30, so drift = 50%
         assertEquals("drift should reflect new data after recovery", 50.0, drift!!, 1.0)
+    }
+
+    @Test
+    fun `a stalled tracker reports null instead of the last average`() {
+        // A strap dropout stops feeding add(), but the caller keeps calling driftPercent()
+        // on its own clock. Once the newest sample we ever saw is older than the current
+        // window span, the window no longer describes "recent" — report absence, not a
+        // frozen figure from before the dropout.
+        val t = DriftTracker(referenceSeconds = 10, currentSeconds = 5, warmupSeconds = 0)
+        for (s in 0 until 10) t.add(s * 1000L, 20.0)          // reference: 20
+        for (s in 30 until 40) t.add(s * 1000L, 23.0)         // current: 23, newest at 39_000L
+
+        // Immediately after: still fresh, reports normally.
+        assertEquals(15.0, t.driftPercent(39_000L)!!, 0.5)
+
+        // Caller keeps polling on its own clock while the sensor is dead. Once "now" is
+        // more than the 5s window past the newest sample we ever saw, it's stale.
+        assertNull(t.driftPercent(39_000L + 5_001L))
+        assertNull(t.driftPercent(39_000L + 60_000L))
     }
 }

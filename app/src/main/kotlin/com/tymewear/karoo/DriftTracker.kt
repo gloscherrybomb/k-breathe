@@ -78,8 +78,16 @@ class DriftTracker(
         }
     }
 
-    /** Percent change of the recent time-scoped window against the held reference. */
-    fun driftPercent(): Double? {
+    /**
+     * Percent change of the recent time-scoped window against the held reference.
+     *
+     * [nowMs] is the caller's current clock, independent of [newestTimestampSeen] (the
+     * newest sample timestamp). If no fresh sample has landed within [currentSeconds] of
+     * now, the tracker is stalled — a dropped sensor must report nothing, not the last
+     * average it happened to hold, so a rider doesn't stare at a frozen "+14%" for the
+     * rest of a ride after a dropout.
+     */
+    fun driftPercent(nowMs: Long): Double? {
         val ref = referenceMean ?: return null
         if (ref <= 0.0 || current.isEmpty()) return null
 
@@ -91,6 +99,11 @@ class DriftTracker(
         }
 
         if (current.isEmpty()) return null
+
+        // Stalled: the newest sample we ever saw is older than the window span, so the
+        // window no longer describes "recent" — report absence rather than a stale figure.
+        if (nowMs - newestTimestampSeen > currentSeconds * 1000L) return null
+
         val avgValue = current.map { it.second }.average()
         return (avgValue / ref - 1.0) * 100.0
     }

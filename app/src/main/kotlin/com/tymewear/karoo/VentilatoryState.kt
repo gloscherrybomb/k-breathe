@@ -41,6 +41,9 @@ object VentilatoryState {
     private var detector = SteadyStateDetector()
     private var deviationCalc = EfficiencyDeviation(baseline)
     private var drift = DriftTracker()
+    // Read without the lock from data-field coroutines via isEnabled(); written under
+    // `lock` from load()/reloadEnabledFlag(). @Volatile makes the unsynchronised read safe.
+    @Volatile
     private var enabled = false
     private var rideCount = 0
 
@@ -91,17 +94,27 @@ object VentilatoryState {
      */
     fun onPowerSample(loadW: Double?) {
         synchronized(lock) {
-            if (!enabled || lifecycle.isPaused) return
+            // lifecycle.isActive guards against accumulating (and re-sorting, once per
+            // second, inside this lock) samples while no ride is recording — e.g. a
+            // trainer idling with power streaming. Without it EfficiencyDeviation grows
+            // unboundedly and publishes a deviation that onRideStart then wipes, so the
+            // rider sees a number vanish the moment they press record.
+            if (!enabled || !lifecycle.isActive || lifecycle.isPaused) return
             val fresh = TymewearData.isDataFresh()
             val ve = if (fresh) TymewearData.smoothMinuteVolume.value.takeIf { it > 0.0 } else null
             val br = if (fresh) TymewearData.smoothBreathRate.value.takeIf { it > 0.0 } else null
 
+            val nowMs = System.currentTimeMillis()
             if (br != null) {
-                drift.add(System.currentTimeMillis(), br)
-                _driftPercent.value = drift.driftPercent()
+                drift.add(nowMs, br)
+                _driftPercent.value = drift.driftPercent(nowMs)
+            } else {
+                // A dropout must clear the reading, not freeze it — otherwise a stale
+                // drift figure (and its warning colour) sits on screen indefinitely.
+                _driftPercent.value = null
             }
 
-            val sample = detector.onSample(loadW, ve) ?: return
+            val sample = detector.onSample(loadW, ve, nowMs) ?: return
             deviationCalc.add(sample)
             // Buffered, not folded into the baseline yet — see the class doc. The
             // baseline is only updated with this ride's samples in onRideEnd().

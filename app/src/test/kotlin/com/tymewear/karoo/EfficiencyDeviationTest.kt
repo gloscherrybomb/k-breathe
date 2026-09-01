@@ -11,7 +11,7 @@ class EfficiencyDeviationTest {
         val f = RideFixture.load(name)
         val d = SteadyStateDetector()
         val out = ArrayList<LoadVeSample>()
-        for (i in f.watts.indices) d.onSample(f.watts[i], f.ve[i])?.let { out.add(it) }
+        for (i in f.watts.indices) d.onSample(f.watts[i], f.ve[i], i * 1000L)?.let { out.add(it) }
         return out
     }
 
