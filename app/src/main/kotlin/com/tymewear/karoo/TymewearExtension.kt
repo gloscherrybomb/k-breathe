@@ -215,6 +215,13 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
         Timber.d("startFit called")
         TymewearData.resetZoneTimes()
 
+        // combine() re-emits on every ELAPSED_TIME tick (~1Hz), not just on RideState
+        // transitions, so without this guard the Paused branch below would call
+        // writeSessionSummary() once per second for the whole pause — rewriting the
+        // artifact riders upload, over and over, for nothing. Cleared on the next
+        // Recording transition so a subsequent pause writes its own summary again.
+        var pauseSummaryWritten = false
+
         // Use ELAPSED_TIME stream (ticks ~1Hz) combined with RideState
         // so we emit a FIT record every second while recording.
         // RideState alone only fires on state transitions.
@@ -226,6 +233,7 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
                 .collect { rideState ->
                     when (rideState) {
                         is RideState.Recording -> {
+                            pauseSummaryWritten = false
                             // Never record a stale reading. Breathing packets can stop
                             // arriving while GATT still reports "connected"; writing the
                             // last-known value every second produced FIT files with
@@ -265,7 +273,10 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
                         }
 
                         is RideState.Paused -> {
-                            writeSessionSummary(emitter)
+                            if (!pauseSummaryWritten) {
+                                writeSessionSummary(emitter)
+                                pauseSummaryWritten = true
+                            }
                         }
 
                         is RideState.Idle -> {}
