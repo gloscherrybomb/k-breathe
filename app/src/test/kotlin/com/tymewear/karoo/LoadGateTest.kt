@@ -59,6 +59,25 @@ class LoadGateTest {
     }
 
     @Test
+    fun `a null heart rate clears the heart-rate window`() {
+        // A strap dropout (TymewearData.clearHr() yields 0 -> null) must not leave the
+        // gate averaging the last pre-dropout heart rates: a frozen HR would go straight
+        // into the scale estimate and the persisted HR baseline.
+        val g = LoadGate()
+        repeat(200) { i -> g.onSample(200.0, 140.0, 60.0, i * 1000L) }
+        assertNotNull(g.onSample(200.0, 140.0, 60.0, 199_000L))
+        g.onSample(200.0, null, 60.0, 200_000L)
+        // The window has to refill to DEFAULT_MIN_WINDOW_FILL (15) before anything is emitted.
+        for (n in 1..14) {
+            assertNull(
+                "window must refill before emitting again, emitted after $n good ticks",
+                g.onSample(200.0, 140.0, 60.0, (200 + n) * 1000L),
+            )
+        }
+        assertNotNull("emission must resume once 15 heart rates are back", g.onSample(200.0, 140.0, 60.0, 215_000L))
+    }
+
+    @Test
     fun `requires heart rate`() {
         val g = LoadGate()
         var emitted = 0

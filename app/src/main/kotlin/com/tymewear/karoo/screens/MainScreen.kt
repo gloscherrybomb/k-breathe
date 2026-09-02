@@ -24,6 +24,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -35,6 +36,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.tymewear.karoo.BaselineStatus
 import com.tymewear.karoo.Constants
 import com.tymewear.karoo.Suggestion
@@ -91,7 +95,20 @@ fun MainScreen(
     var showResetConfirm by remember { mutableStateOf(false) }
     var suggestions by remember { mutableStateOf<List<Suggestion>>(emptyList()) }
     var changes by remember { mutableStateOf<List<ThresholdChange>>(emptyList()) }
+    var lastScale by remember { mutableStateOf<Double?>(null) }
     val isConnected by TymewearData.isConnected.collectAsState()
+
+    // Everything on this screen that comes from preferences rather than from the form.
+    // All of it is read from prefs directly, not from the in-memory VentilatoryState
+    // flows: this screen can be opened by a fresh process before the extension has run
+    // in it (a cold start from the launcher icon after process death), when those flows
+    // are still at their defaults despite a complete baseline sitting in prefs.
+    fun refreshPersisted() {
+        baselineStatus = loadBaselineStatus()
+        lastScale = loadLastRideScale()
+        suggestions = loadSuggestions()
+        changes = loadChangeHistory()
+    }
 
     // After applying or reverting a threshold change: the vt1/vt2 fields, the
     // suggestion card and the change-history list can all have moved, so all four are
@@ -102,6 +119,9 @@ fun MainScreen(
         vt2 = prefs.vt2.toString()
         suggestions = loadSuggestions()
         changes = loadChangeHistory()
+        // The VT1/VT2 fields on screen were just replaced from prefs, so a "Saved" label
+        // left over from an earlier Save would be claiming the rider saved these values.
+        saved = false
     }
 
     LaunchedEffect(Unit) {
@@ -117,14 +137,24 @@ fun MainScreen(
         restingHr = prefs.restingHr.toString()
         dynamicStateEnabled = prefs.dynamicStateEnabled
         autoApplyThresholds = prefs.autoApplyThresholds
-        // Read from prefs directly, not the in-memory VentilatoryState flow: this
-        // screen can be opened by a fresh process before the extension has run in it
-        // (a cold start from the launcher icon after process death), when the flow is
-        // still at its zero default despite a complete baseline sitting in prefs.
-        baselineStatus = loadBaselineStatus()
-        suggestions = loadSuggestions()
-        changes = loadChangeHistory()
     }
+
+    // The extension keeps writing the persisted values while this screen sits in the
+    // background, so a ride finished (or a threshold auto-applied at its end) between
+    // opening settings and coming back to them would otherwise leave the old numbers on
+    // screen until the process died. Re-read on every ON_RESUME. Deliberately excludes
+    // the text fields above: reloading those on resume would discard edits the rider had
+    // not saved yet.
+    var resumeCount by remember { mutableStateOf(0) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) resumeCount++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(resumeCount) { refreshPersisted() }
 
     Column(
         modifier = Modifier
@@ -321,9 +351,9 @@ fun MainScreen(
             color = MaterialTheme.colorScheme.onBackground,
         )
 
-        val lastScale = remember { loadLastRideScale() }
-        if (lastScale != null) {
-            val pct = ((lastScale - 1.0) * 100).roundToInt()
+        val scale = lastScale
+        if (scale != null) {
+            val pct = ((scale - 1.0) * 100).roundToInt()
             Text(
                 text = "Last ride the strap read ${abs(pct)}% ${if (pct < 0) "low" else "high"}" +
                     if (abs(pct) >= 10) " — check strap tension and position." else ".",
@@ -427,7 +457,9 @@ fun MainScreen(
                         onClick = {
                             showResetConfirm = false
                             onResetBaseline()
-                            baselineStatus = loadBaselineStatus()
+                            // The reset clears the last-ride scale and the evidence
+                            // history too, not just the bin counts.
+                            refreshPersisted()
                         },
                     ) {
                         Text("Reset baseline")

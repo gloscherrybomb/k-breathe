@@ -50,6 +50,10 @@ class ThresholdEvidenceTest {
             for (i in f.watts.indices) g.onSample(f.watts[i], f.hr[i], f.ve[i], i * 1000L)?.let { b.update(it.loadW, it.ve) } }
         val bp = ThresholdEvidence.estimate(b.bins(), minCount = 30)
         assertNull(bp.lowerLoadW); assertNull(bp.upperLoadW)
+        // Also refused at the production minCount (120), which is what onRideEnd actually
+        // calls: the loosened bar above only exists to give the fitter more bins to work with.
+        val production = ThresholdEvidence.estimate(b.bins())
+        assertNull(production.lowerLoadW); assertNull(production.upperLoadW)
         assertTrue(ThresholdEvidence.suggestions(List(3) { bp }, ZoneThresholds(73.0, 96.0, 112.0, 130.0)).isEmpty())
     }
 
@@ -100,7 +104,13 @@ class ThresholdEvidenceTest {
         val vt2TooHigh = Suggestion(ThresholdKind.VT2, 96.0, 115.0)      // above TopZ4
         val vt1TooHigh = Suggestion(ThresholdKind.VT1, 73.0, 97.0)       // above VT2
         val vt2TooLow = Suggestion(ThresholdKind.VT2, 96.0, 70.0)        // below VT1
+        // A degenerate fit can extrapolate a hinge value at or below zero; "breathe -3 L/min
+        // at VT1" is not a threshold, and for VT1 nothing else in the ordering rule catches it.
+        val vt1NonPositive = Suggestion(ThresholdKind.VT1, 73.0, -3.0)
         val fine = Suggestion(ThresholdKind.VT2, 96.0, 105.0)
-        assertEquals(listOf(fine), ThresholdEvidence.filterSuggestions(listOf(vt2TooHigh, vt1TooHigh, vt2TooLow, fine), cfg, null, null))
+        assertEquals(
+            listOf(fine),
+            ThresholdEvidence.filterSuggestions(listOf(vt2TooHigh, vt1TooHigh, vt2TooLow, vt1NonPositive, fine), cfg, null, null),
+        )
     }
 }

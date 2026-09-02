@@ -95,6 +95,13 @@ object VentilatoryState {
     private var lastRideScale: Double? = null
     private var lastRideDayQuality: Double? = null
 
+    /** True when [lastRideScale] holds a raw *out-of-range* factor rather than a locked
+     *  scale. The settings hint wants that number (spec §7), but the FIT session must not:
+     *  the recorded zones were never corrected by it, and spec §2.3 leaves
+     *  `tyme_ve_scale` out whenever the scale did not lock. In memory only, because it
+     *  only ever describes the ride that just ended in this process. */
+    private var lastRideScaleOutOfRange = false
+
     // Read without the lock from data-field coroutines via isEnabled(); written under
     // `lock` from load()/reloadEnabledFlag(). @Volatile makes the unsynchronised read safe.
     @Volatile
@@ -117,9 +124,6 @@ object VentilatoryState {
      *  has been removed. Negative is the good direction. */
     private val _dayQuality = MutableStateFlow<Double?>(null)
     val dayQuality: StateFlow<Double?> = _dayQuality.asStateFlow()
-
-    private val _baselineBins = MutableStateFlow(0)
-    val baselineBins: StateFlow<Int> = _baselineBins.asStateFlow()
 
     private fun newPipeline() = SessionPipeline(
         powerBaseline,
@@ -149,6 +153,7 @@ object VentilatoryState {
                 hrBaseline = VeBaseline(binWidth = VeBaseline.DEFAULT_HR_BIN_WIDTH)
                 rideCount = 0
                 lastRideScale = null
+                lastRideScaleOutOfRange = false
                 lastRideDayQuality = null
                 evidenceHistory = emptyList()
                 Timber.i("Baseline from 0.5.0 discarded; recalibrating with the session-scale pipeline")
@@ -163,8 +168,10 @@ object VentilatoryState {
                 evidenceHistory = loadEvidenceHistoryFrom(prefs)
             }
             pipeline = newPipeline()
-            _baselineBins.value = powerBaseline.coveredBins()
-            if (migrating) persist(context)
+            // A discarded 0.5.0 baseline has no history behind it, so it must not claim
+            // one: writing "updated just now" would have the settings screen report a
+            // baseline that is 0 minutes old and empty. 0 reads as "never" there.
+            if (migrating) persist(context, updatedAtMs = 0L)
             Timber.d(
                 "VentilatoryState loaded: enabled=$enabled powerBins=${powerBaseline.coveredBins()} " +
                     "hrBins=${hrBaseline.coveredBins()} rides=$rideCount",
@@ -178,8 +185,9 @@ object VentilatoryState {
      *
      * Breathing is only used when fresh — a stale value is indistinguishable from a real
      * one and would make the numbers confident fiction. [LoadGate] enforces the same
-     * contract internally: it clears its VE window on a null reading so a sensor dropout
-     * can never surface a frozen pre-dropout average as a real sample.
+     * contract internally for both streams: it clears its VE window and its heart-rate
+     * window on a null reading, so a sensor or strap dropout can never surface a frozen
+     * pre-dropout average as a real sample.
      */
     fun onSample(loadW: Double?, hrBpm: Double?) {
         synchronized(lock) {
@@ -268,28 +276,58 @@ object VentilatoryState {
             // gate exists to prevent. It would also rewrite baseline_updated_at, telling
             // the settings screen the baseline is fresher than it is.
             if (!enabled) return
-            // Normalise out today's strap scale before folding in, so the baselines stay
-            // on one internal reference (spec §3.4). A ride whose scale never locked is
-            // folded in as-is: 1.0 is the honest assumption when nothing was measured.
-            val factor = _scale.value ?: 1.0
-            for (s in pipeline.rideSamples) {
-                powerBaseline.update(s.loadW, s.ve / factor)
-                hrBaseline.update(s.hrBpm, s.ve / factor)
-            }
-            lastRideScale = _scale.value
-            lastRideDayQuality = _dayQuality.value
-            rideCount += 1
-            _baselineBins.value = powerBaseline.coveredBins()
-            // Threshold evidence (spec §6): fit this ride's pooled curve, fold it into
-            // the rolling history, and — only if the rider opted in — silently apply
-            // whatever the updated history now agrees on.
-            val bp = ThresholdEvidence.estimate(powerBaseline.bins())
-            evidenceHistory = (evidenceHistory + bp).takeLast(MAX_EVIDENCE)
-            if (isAutoApply(context)) {
-                for (s in suggestionsFrom(evidenceHistory, TymewearData.configuredThresholds(), context)) {
-                    apply(context, s)
+            // A measured factor outside SessionScale's clamp means the strap was probably
+            // not worn correctly (spec §3.3, §7), so this ride is known-bad data and none
+            // of it may reach the baselines: folding in a ride's worth of mis-scaled
+            // samples would corrupt the one internal reference every future scale estimate
+            // is measured against, and counting the ride would walk rideCount toward the
+            // confidence gate on evidence that is worthless. The raw figure is still
+            // recorded and persisted below, because telling the rider "check the strap" is
+            // exactly what §7 asks for.
+            //
+            // Unreachable on the calibration rides: OutOfRange requires a confident devHR,
+            // which SessionPipeline only produces once the baseline holds
+            // STATE_MIN_BASELINE_RIDES rides, so the first two rides always end Calibrating.
+            val outOfRange = _scaleStatus.value as? ScaleStatus.OutOfRange
+            if (outOfRange == null) {
+                // Normalise out today's strap scale before folding in, so the baselines stay
+                // on one internal reference (spec §3.4). A ride whose scale never locked is
+                // folded in as-is: 1.0 is the honest assumption when nothing was measured.
+                val factor = _scale.value ?: 1.0
+                for (s in pipeline.rideSamples) {
+                    powerBaseline.update(s.loadW, s.ve / factor)
+                    hrBaseline.update(s.hrBpm, s.ve / factor)
+                }
+                rideCount += 1
+                // Threshold evidence (spec §6): fit this ride's pooled curve, fold it into
+                // the rolling history, and — only if the rider opted in — silently apply
+                // whatever the updated history now agrees on. Inside the same guard as the
+                // fold-in on purpose: the fit is taken from the pooled baseline, so after an
+                // out-of-range ride (which changed nothing) it would only re-append the
+                // previous ride's breakpoints and pad §6's "three rides agree" window with a
+                // duplicate.
+                val bp = ThresholdEvidence.estimate(powerBaseline.bins())
+                evidenceHistory = (evidenceHistory + bp).takeLast(MAX_EVIDENCE)
+                if (isAutoApply(context)) {
+                    // Reload the configured thresholds first, for the same reason
+                    // suggestions() does: in a process where the rider has edited them since
+                    // onCreate, TymewearData's in-memory copy is stale, and a suggestion
+                    // compared against a stale value can be silently applied over a number
+                    // the rider just chose.
+                    TymewearData.loadThresholds(context)
+                    for (s in suggestionsFrom(evidenceHistory, TymewearData.configuredThresholds(), context)) {
+                        apply(context, s)
+                    }
                 }
             }
+            // For an out-of-range ride the last-ride record is the *raw* measured factor,
+            // not null: lastRideScale(context) and the settings hint ("read N % high/low —
+            // check strap tension and position") are the only place the rider ever learns
+            // the strap misread, so throwing the number away would hide the one thing worth
+            // acting on (spec §7).
+            lastRideScale = outOfRange?.raw ?: _scale.value
+            lastRideScaleOutOfRange = outOfRange != null
+            lastRideDayQuality = _dayQuality.value
             persist(context)
             pipeline = newPipeline()
             // These held this ride's numbers while it was recording; leaving them set
@@ -312,24 +350,31 @@ object VentilatoryState {
             hrBaseline = VeBaseline(binWidth = VeBaseline.DEFAULT_HR_BIN_WIDTH)
             rideCount = 0
             lastRideScale = null
+            lastRideScaleOutOfRange = false
             lastRideDayQuality = null
             // Evidence was fitted from the baseline this just discarded; keeping it
             // around would let a stale breakpoint keep suggesting changes against data
             // that no longer exists.
             evidenceHistory = emptyList()
             pipeline = newPipeline()
-            _baselineBins.value = 0
+            // Mirrors onRideStart: a reset can land mid-ride, and the published flows and
+            // the scale window's clock all describe numbers derived from the baseline that
+            // was just discarded. Leaving them set would keep a locked scale on screen —
+            // and correcting the zone colours by it — with nothing left behind it.
+            recordingSeconds = 0
+            _scale.value = null
+            _scaleStatus.value = ScaleStatus.Calibrating
+            _dayQuality.value = null
             persist(context)
         }
     }
 
     /**
      * Baseline status read straight from prefs rather than in-memory state, for a
-     * settings-screen launch that has no running extension in this process to have
-     * populated [baselineBins] via [load] — a cold start from the launcher icon after
-     * process death, most commonly. Deliberately does not call [load]: that would
-     * overwrite the in-memory baselines out from under a ride that is actively recording
-     * in this same process.
+     * settings-screen launch that has no running extension in this process to have run
+     * [load] — a cold start from the launcher icon after process death, most commonly.
+     * Deliberately does not call [load] itself: that would overwrite the in-memory
+     * baselines out from under a ride that is actively recording in this same process.
      */
     fun persistedStatus(context: Context): BaselineStatus {
         val prefs = prefs(context)
@@ -479,14 +524,20 @@ object VentilatoryState {
      *  ride's — the summary is written after the Idle transition has already cleared the
      *  live flows. */
     fun summaryForFit(): Pair<Double?, Double?> = synchronized(lock) {
-        if (lifecycle.isActive) _scale.value to _dayQuality.value else lastRideScale to lastRideDayQuality
+        if (lifecycle.isActive) {
+            _scale.value to _dayQuality.value
+        } else {
+            (if (lastRideScaleOutOfRange) null else lastRideScale) to lastRideDayQuality
+        }
     }
 
-    private fun persist(context: Context) {
+    /** [updatedAtMs] is overridable only for the 0.5.0 migration, which persists an empty
+     *  baseline and must not stamp it as freshly updated. */
+    private fun persist(context: Context, updatedAtMs: Long = System.currentTimeMillis()) {
         prefs(context).edit()
             .putString(KEY_BASELINE, powerBaseline.serialise())
             .putString(KEY_HR_BASELINE, hrBaseline.serialise())
-            .putLong(KEY_UPDATED, System.currentTimeMillis())
+            .putLong(KEY_UPDATED, updatedAtMs)
             .putInt(KEY_RIDES, rideCount)
             .putFloat(KEY_LAST_SCALE, (lastRideScale ?: 0.0).toFloat())
             // Stored as text, not a float: 0 % day quality is a real reading ("exactly my

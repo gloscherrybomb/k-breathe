@@ -71,7 +71,7 @@ class SessionPipelineTest {
     }
 
     @Test
-    fun `a good indoor day shows negative day quality with a near-unity scale`() {
+    fun `a good indoor day shows negative day quality independent of the strap scale`() {
         // 2026-02-24 reference replay: dayQuality at ride end -12.4; scale locked in the first 40 min
         // and held at 1.197 (the whole-ride devHR of +8.8% is lower because HR drifted later on).
         val r = replay("ride_2026-02-24.csv")

@@ -51,8 +51,24 @@ class LoadGate(
         while (loadHistory.size > lookbackTicks + 1) loadHistory.removeFirst()
         coastFlags.addLast(loadW == null || loadW < coastBelowW)
         while (coastFlags.size > lookbackTicks) coastFlags.removeFirst()
-        if (ve == null) veWindow.clear() else { veWindow.addLast(ve); while (veWindow.size > windowTicks) veWindow.removeFirst() }
-        if (hrBpm != null) { hrWindow.addLast(hrBpm); while (hrWindow.size > windowTicks) hrWindow.removeFirst() }
+        // Both windows share one freshness contract: a null reading *clears* the window,
+        // it is never merely skipped. Skipping would leave the mean standing on values
+        // from before the dropout, and a frozen ventilation or heart rate is
+        // indistinguishable downstream from a real one — it would feed the strap-scale
+        // estimate and, at ride end, the persisted baselines. Clearing costs
+        // `minWindowFill` seconds of samples after a dropout and buys honesty.
+        if (ve == null) {
+            veWindow.clear()
+        } else {
+            veWindow.addLast(ve)
+            while (veWindow.size > windowTicks) veWindow.removeFirst()
+        }
+        if (hrBpm == null) {
+            hrWindow.clear()
+        } else {
+            hrWindow.addLast(hrBpm)
+            while (hrWindow.size > windowTicks) hrWindow.removeFirst()
+        }
 
         if (ticks < warmupTicks) return null
         if (loadHistory.size < lookbackTicks + 1) return null

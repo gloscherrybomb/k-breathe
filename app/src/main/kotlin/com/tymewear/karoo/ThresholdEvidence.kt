@@ -170,8 +170,9 @@ object ThresholdEvidence {
         return out
     }
 
-    /** Drops suggestions the rider dismissed at (nearly) this value and any that would put the
-     *  thresholds out of order. Pure, so the two rules are testable without preferences. */
+    /** Drops suggestions the rider dismissed at (nearly) this value, any that are not a
+     *  positive ventilation, and any that would put the thresholds out of order. Pure, so
+     *  all three rules are testable without preferences. */
     fun filterSuggestions(
         suggestions: List<Suggestion>,
         configured: ZoneThresholds,
@@ -181,11 +182,16 @@ object ThresholdEvidence {
     ): List<Suggestion> = suggestions.filter { s ->
         val dismissed = if (s.kind == ThresholdKind.VT1) dismissedVt1 else dismissedVt2
         val notDismissed = dismissed == null || abs(s.suggestedVe - dismissed) >= dismissToleranceVe
+        // A hinge value is read off a fitted line and can extrapolate to zero or below on a
+        // degenerate fit. Nothing downstream treats a non-positive threshold sensibly — and
+        // for VT1 the ordering rule alone would happily accept it, since anything is less
+        // than VT2 — so it is refused here for both kinds.
+        val positive = s.suggestedVe > 0
         val inOrder = when (s.kind) {
             ThresholdKind.VT1 -> s.suggestedVe < configured.vt2
             ThresholdKind.VT2 -> s.suggestedVe > configured.vt1 && s.suggestedVe < configured.topZ4
         }
-        notDismissed && inOrder
+        notDismissed && positive && inOrder
     }
 
     private fun median(values: List<Double>): Double {

@@ -76,8 +76,10 @@ class SessionScaleTest {
         s.offer(dev(80.0), 700)            // strap glitch: 1.8 is out of range
         assertEquals(ScaleStatus.Locked(0.8), s.status)
         assertEquals(0.8, s.displayed(700)!!, 1e-9)
-        // Throttle clock was not advanced by the ignored offer: a good reading at 700+60 still updates.
-        s.offer(dev(-10.0), 760)
+        // The ignored offer must not advance the throttle clock either. It still reads 600, so
+        // a good offer at 730 is 130 s later and updates; had the glitch moved it to 700, 730
+        // would fall inside the 60 s throttle and the scale would still say 0.8.
+        s.offer(dev(-10.0), 730)
         assertEquals(ScaleStatus.Locked(0.9), s.status)
     }
 
