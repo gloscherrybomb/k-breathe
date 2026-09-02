@@ -217,6 +217,21 @@ object TymewearData {
         recomputeMi()
     }
 
+    /**
+     * The heart-rate stream reported no reading. Zeroing is the honest answer, and the
+     * same rule breathing data already follows: a latched last-known HR is
+     * indistinguishable from a live one, so leaving it in place would let a mid-ride
+     * dropout feed a frozen value to the Mobilization Index and, through
+     * [VentilatoryState.onSample], into the heart-rate deviation the strap scale is
+     * estimated from — and thence into the persisted heart-rate baseline at ride end.
+     * Callers downstream already read 0.0 as "no data".
+     */
+    fun clearHr() {
+        _heartRate.value = 0.0
+        _percentHrr.value = 0.0
+        recomputeMi()
+    }
+
     private fun recomputeMi() {
         val br = _smoothBreathRate.value
         val hr = _heartRate.value

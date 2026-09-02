@@ -225,6 +225,15 @@ object VentilatoryState {
             // method) with nothing having started, spuriously incrementing rideCount
             // and re-persisting an unchanged baseline.
             if (!lifecycle.onIdle()) return
+            // The lifecycle transition above is consumed either way, but a Beta-off ride
+            // must not count: onSample fed nothing into the pipeline, so folding in and
+            // advancing rideCount would credit the baseline with a ride that contributed
+            // no samples. A handful of those would walk rideCount past
+            // STATE_MIN_BASELINE_RIDES, and the second Beta-on ride would then be scored
+            // against a "baseline" that is really just one other day — exactly what that
+            // gate exists to prevent. It would also rewrite baseline_updated_at, telling
+            // the settings screen the baseline is fresher than it is.
+            if (!enabled) return
             // Normalise out today's strap scale before folding in, so the baselines stay
             // on one internal reference (spec §3.4). A ride whose scale never locked is
             // folded in as-is: 1.0 is the honest assumption when nothing was measured.

@@ -76,6 +76,9 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
                             }
                             else -> {
                                 Timber.d("HR stream state: $state")
+                                // Not Streaming means no reading, not "the last one still
+                                // holds" — see TymewearData.clearHr().
+                                TymewearData.clearHr()
                             }
                         }
                     }
