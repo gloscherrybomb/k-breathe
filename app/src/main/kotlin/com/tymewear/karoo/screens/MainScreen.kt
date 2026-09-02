@@ -16,7 +16,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -363,26 +362,11 @@ fun MainScreen(
         }
 
         for (s in suggestions) {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Text(
-                        text = "Recent rides put ${s.kind} near ${"%.0f".format(s.suggestedVe)} " +
-                            "L/min. Configured: ${"%.0f".format(s.currentVe)}.",
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = { onApplySuggestion(s); refreshThresholds() }) {
-                            Text("Apply")
-                        }
-                        TextButton(onClick = { onDismissSuggestion(s); suggestions = loadSuggestions() }) {
-                            Text("Dismiss")
-                        }
-                    }
-                }
-            }
+            SuggestionCard(
+                s = s,
+                onApply = { onApplySuggestion(s); refreshThresholds() },
+                onDismiss = { onDismissSuggestion(s); suggestions = loadSuggestions() },
+            )
         }
 
         Row(

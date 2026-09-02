@@ -259,14 +259,22 @@ object VentilatoryState {
         synchronized(lock) { lifecycle.onPaused() }
     }
 
-    fun onRideEnd(context: Context) {
+    /**
+     * Folds a finished ride into the baselines and refreshes the threshold evidence.
+     *
+     * Returns true only when this was a real ride end with the Beta on — that is, when
+     * neither early return below fired. The extension uses that to decide whether to
+     * offer the resulting suggestions on the Karoo (see [RideEndPrompt]); a replayed
+     * Idle or a Beta-off ride must not put a prompt over the rider's screen.
+     */
+    fun onRideEnd(context: Context): Boolean {
         synchronized(lock) {
             // No-op unless a ride is actually active: guards against
             // consumerFlow<RideState>() replaying the current state on a cold
             // subscribe, which would otherwise fire an Idle transition (and so this
             // method) with nothing having started, spuriously incrementing rideCount
             // and re-persisting an unchanged baseline.
-            if (!lifecycle.onIdle()) return
+            if (!lifecycle.onIdle()) return false
             // The lifecycle transition above is consumed either way, but a Beta-off ride
             // must not count: onSample fed nothing into the pipeline, so folding in and
             // advancing rideCount would credit the baseline with a ride that contributed
@@ -275,7 +283,7 @@ object VentilatoryState {
             // against a "baseline" that is really just one other day — exactly what that
             // gate exists to prevent. It would also rewrite baseline_updated_at, telling
             // the settings screen the baseline is fresher than it is.
-            if (!enabled) return
+            if (!enabled) return false
             // A measured factor outside SessionScale's clamp means the strap was probably
             // not worn correctly (spec §3.3, §7), so this ride is known-bad data and none
             // of it may reach the baselines: folding in a ride's worth of mis-scaled
@@ -342,6 +350,10 @@ object VentilatoryState {
                     "hrBins=${hrBaseline.coveredBins()} rides=$rideCount scale=$lastRideScale",
             )
         }
+        // Deliberately outside the synchronized block: the caller reacts to this by
+        // starting an Activity, and nothing that touches the UI should run while the
+        // pipeline lock is held.
+        return true
     }
 
     fun resetBaseline(context: Context) {

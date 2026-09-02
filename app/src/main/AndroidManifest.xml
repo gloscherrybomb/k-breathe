@@ -36,6 +36,14 @@
             </intent-filter>
         </activity>
 
+        <!-- Ride-end threshold prompt: started by the extension, never by the
+             launcher, and kept out of recents so it does not linger after a ride. -->
+        <activity
+            android:name=".SuggestionPromptActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop" />
+
         <service
             android:name=".TymewearExtension"
             android:exported="true"

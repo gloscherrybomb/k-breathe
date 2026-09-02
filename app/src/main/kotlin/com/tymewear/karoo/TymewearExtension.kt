@@ -130,11 +130,41 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
                                 VentilatoryState.onRidePause()
                             }
                             if (state is RideState.Idle) {
-                                VentilatoryState.onRideEnd(applicationContext)
+                                val rideEnded = VentilatoryState.onRideEnd(applicationContext)
+                                maybePromptForSuggestions(rideEnded)
                             }
                         }
                 }
             }
+        }
+    }
+
+    /**
+     * Offers this ride's threshold suggestions on the Karoo, if there are any to offer.
+     *
+     * karoo-ext has no dialog API, so the only way to put a choice in front of the rider
+     * is an Activity of our own — started with NEW_TASK because a Service has no task of
+     * its own to put it in. Android 10+ blocks most background activity starts; Karoo OS
+     * is Android 8, so this is expected to work there, but a refusal must never take the
+     * ride-end path down with it: the suggestion is still sitting in the settings app,
+     * which is exactly where it lived before this prompt existed.
+     */
+    private fun maybePromptForSuggestions(rideEnded: Boolean) {
+        val ctx = applicationContext
+        val show = RideEndPrompt.shouldShow(
+            rideEnded = rideEnded,
+            betaEnabled = VentilatoryState.isEnabled(),
+            autoApply = VentilatoryState.isAutoApply(ctx),
+            suggestionCount = VentilatoryState.suggestions(ctx).size,
+        )
+        if (!show) return
+        try {
+            startActivity(
+                android.content.Intent(ctx, SuggestionPromptActivity::class.java)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        } catch (e: Exception) {
+            Timber.w(e, "Could not open the suggestion prompt; it stays available in settings")
         }
     }
 
