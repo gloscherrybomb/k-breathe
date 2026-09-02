@@ -43,4 +43,24 @@ class ZoneClassifierTest {
             ve += 0.5
         }
     }
+
+    @Test
+    fun `scaling multiplies every threshold`() {
+        val s = t.scaled(0.8)
+        assertEquals(58.4, s.vt1, 0.001); assertEquals(76.8, s.vt2, 0.001)
+        assertEquals(89.6, s.topZ4, 0.001); assertEquals(104.0, s.vo2max, 0.001)
+    }
+
+    @Test
+    fun `effective thresholds fall back to configured when no scale is known`() {
+        assertEquals(t, ZoneClassifier.effectiveThresholds(t, null))
+        assertEquals(t.scaled(1.2), ZoneClassifier.effectiveThresholds(t, 1.2))
+    }
+
+    @Test
+    fun `a strap reading low moves a value up a zone once corrected`() {
+        // Strap reads 20% low: 60 L/min displayed is really 75, above VT1=73.
+        assertEquals(1, ZoneClassifier.zoneFor(60.0, t))
+        assertEquals(2, ZoneClassifier.zoneFor(60.0, ZoneClassifier.effectiveThresholds(t, 0.8)))
+    }
 }

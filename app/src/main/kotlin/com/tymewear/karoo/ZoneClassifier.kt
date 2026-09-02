@@ -8,6 +8,10 @@ data class ZoneThresholds(
     val vo2max: Double,
 )
 
+/** The same thresholds expressed in a strap scale [factor] times the configured one. */
+fun ZoneThresholds.scaled(factor: Double): ZoneThresholds =
+    ZoneThresholds(vt1 * factor, vt2 * factor, topZ4 * factor, vo2max * factor)
+
 /**
  * The single place a ventilation value becomes a zone.
  *
@@ -19,4 +23,10 @@ data class ZoneThresholds(
 object ZoneClassifier {
     fun zoneFor(ve: Double, thresholds: ZoneThresholds): Int =
         Protocol.veZone(ve, thresholds.vt1, thresholds.vt2, thresholds.topZ4, thresholds.vo2max)
+
+    /** Thresholds to classify today's raw VE against: configured × today's strap scale
+     *  when one is known, configured otherwise. Dividing VE by the scale would give the
+     *  same zone; scaling the thresholds leaves displayed and recorded VE untouched. */
+    fun effectiveThresholds(configured: ZoneThresholds, scale: Double?): ZoneThresholds =
+        if (scale == null) configured else configured.scaled(scale)
 }
