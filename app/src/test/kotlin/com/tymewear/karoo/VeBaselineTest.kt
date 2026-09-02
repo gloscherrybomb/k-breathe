@@ -26,24 +26,24 @@ class VeBaselineTest {
     @Test
     fun `a bin is unusable until it has enough samples`() {
         val b = VeBaseline(minSamplesPerBin = 30)
-        repeat(29) { b.update(LoadVeSample(200.0, 60.0)) }
+        repeat(29) { b.update(LoadVeSample(200.0, 0.0, 60.0)) }
         assertNull("29 samples is below the minimum", b.expectedVe(200.0))
-        b.update(LoadVeSample(200.0, 60.0))
+        b.update(LoadVeSample(200.0, 0.0, 60.0))
         assertNotNull("30 samples reaches the minimum", b.expectedVe(200.0))
     }
 
     @Test
     fun `expected VE is the mean of the bin`() {
         val b = VeBaseline(minSamplesPerBin = 2)
-        b.update(LoadVeSample(200.0, 50.0))
-        b.update(LoadVeSample(200.0, 70.0))
+        b.update(LoadVeSample(200.0, 0.0, 50.0))
+        b.update(LoadVeSample(200.0, 0.0, 70.0))
         assertEquals(60.0, b.expectedVe(203.0)!!, 0.001)
     }
 
     @Test
     fun `unknown loads return null rather than extrapolating`() {
         val b = VeBaseline(minSamplesPerBin = 1)
-        b.update(LoadVeSample(200.0, 60.0))
+        b.update(LoadVeSample(200.0, 0.0, 60.0))
         assertNull(b.expectedVe(400.0))
     }
 
@@ -95,7 +95,7 @@ class VeBaselineTest {
     @Test
     fun `count stops growing at the cap`() {
         val b = VeBaseline(minSamplesPerBin = 1, maxSamplesPerBin = 100)
-        repeat(250) { b.update(LoadVeSample(200.0, 50.0)) }
+        repeat(250) { b.update(LoadVeSample(200.0, 0.0, 50.0)) }
         assertEquals(100, countOf(b, 200.0))
     }
 
@@ -103,8 +103,8 @@ class VeBaselineTest {
     fun `a saturated bin tracks new values instead of averaging them in`() {
         val cap = 100
         val b = VeBaseline(minSamplesPerBin = 1, maxSamplesPerBin = cap)
-        repeat(cap) { b.update(LoadVeSample(200.0, 50.0)) }
-        repeat(cap) { b.update(LoadVeSample(200.0, 70.0)) }
+        repeat(cap) { b.update(LoadVeSample(200.0, 0.0, 50.0)) }
+        repeat(cap) { b.update(LoadVeSample(200.0, 0.0, 70.0)) }
         // An uncapped running mean would land exactly on 60.0; the EMA behaviour lands
         // measurably above it (~62.6 for cap=100) — the discriminating assertion.
         val ve = b.expectedVe(200.0)!!

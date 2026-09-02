@@ -10,9 +10,9 @@ class ThresholdShiftTest {
     /** Baseline where VE rises 10 L/min per 20W step: 140W->50, 160W->60, 180W->70. */
     private fun linearBaseline(): VeBaseline {
         val b = VeBaseline(minSamplesPerBin = 1)
-        b.update(LoadVeSample(140.0, 50.0))
-        b.update(LoadVeSample(160.0, 60.0))
-        b.update(LoadVeSample(180.0, 70.0))
+        b.update(LoadVeSample(140.0, 0.0, 50.0))
+        b.update(LoadVeSample(160.0, 0.0, 60.0))
+        b.update(LoadVeSample(180.0, 0.0, 70.0))
         return b
     }
 

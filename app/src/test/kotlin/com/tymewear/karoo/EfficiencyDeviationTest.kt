@@ -32,29 +32,29 @@ class EfficiencyDeviationTest {
     @Test
     fun `reports nothing before enough bins are matched`() {
         val e = EfficiencyDeviation(baselineFromFebruary())
-        repeat(100) { e.add(LoadVeSample(160.0, 60.0)) }   // one bin only
+        repeat(100) { e.add(LoadVeSample(160.0, 0.0, 60.0)) }   // one bin only
         assertNull("one matched bin is not enough", e.deviation())
     }
 
     @Test
     fun `identical ventilation to baseline reads as zero`() {
         val b = VeBaseline(minSamplesPerBin = 1)
-        b.update(LoadVeSample(140.0, 50.0))
-        b.update(LoadVeSample(160.0, 60.0))
-        b.update(LoadVeSample(180.0, 70.0))
+        b.update(LoadVeSample(140.0, 0.0, 50.0))
+        b.update(LoadVeSample(160.0, 0.0, 60.0))
+        b.update(LoadVeSample(180.0, 0.0, 70.0))
         val e = EfficiencyDeviation(b, minSamplesPerBin = 1, minMatchedBins = 3)
-        e.add(LoadVeSample(140.0, 50.0))
-        e.add(LoadVeSample(160.0, 60.0))
-        e.add(LoadVeSample(180.0, 70.0))
+        e.add(LoadVeSample(140.0, 0.0, 50.0))
+        e.add(LoadVeSample(160.0, 0.0, 60.0))
+        e.add(LoadVeSample(180.0, 0.0, 70.0))
         assertEquals(0.0, e.deviation()!!.percent, 0.001)
     }
 
     @Test
     fun `higher ventilation at the same load reads positive`() {
         val b = VeBaseline(minSamplesPerBin = 1)
-        listOf(140.0 to 50.0, 160.0 to 60.0, 180.0 to 70.0).forEach { b.update(LoadVeSample(it.first, it.second)) }
+        listOf(140.0 to 50.0, 160.0 to 60.0, 180.0 to 70.0).forEach { b.update(LoadVeSample(it.first, 0.0, it.second)) }
         val e = EfficiencyDeviation(b, minSamplesPerBin = 1, minMatchedBins = 3)
-        listOf(140.0 to 55.0, 160.0 to 66.0, 180.0 to 77.0).forEach { e.add(LoadVeSample(it.first, it.second)) }
+        listOf(140.0 to 55.0, 160.0 to 66.0, 180.0 to 77.0).forEach { e.add(LoadVeSample(it.first, 0.0, it.second)) }
         assertEquals("10% more ventilation for the same work", 10.0, e.deviation()!!.percent, 0.01)
     }
 
