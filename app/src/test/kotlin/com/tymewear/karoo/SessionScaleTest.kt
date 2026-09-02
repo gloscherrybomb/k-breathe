@@ -68,4 +68,27 @@ class SessionScaleTest {
         val s = SessionScale(); s.offer(dev(-20.0), 600); s.reset()
         assertTrue(s.status is ScaleStatus.Calibrating); assertNull(s.displayed(0))
     }
+
+    @Test
+    fun `an implausible reading after a lock is ignored and the lock is kept`() {
+        val s = SessionScale()
+        s.offer(dev(-20.0), 600)
+        s.offer(dev(80.0), 700)            // strap glitch: 1.8 is out of range
+        assertEquals(ScaleStatus.Locked(0.8), s.status)
+        assertEquals(0.8, s.displayed(700)!!, 1e-9)
+        // Throttle clock was not advanced by the ignored offer: a good reading at 700+60 still updates.
+        s.offer(dev(-10.0), 760)
+        assertEquals(ScaleStatus.Locked(0.9), s.status)
+    }
+
+    @Test
+    fun `a plausible reading after an out-of-range one locks normally`() {
+        val s = SessionScale()
+        s.offer(dev(80.0), 600)
+        assertTrue(s.status is ScaleStatus.OutOfRange)
+        s.offer(dev(-20.0), 660)
+        assertEquals(ScaleStatus.Locked(0.8), s.status)
+        assertEquals(1.0, s.displayed(660)!!, 1e-9)   // eases from 1.0: nothing was displayed before
+        assertEquals(0.8, s.displayed(690)!!, 1e-9)
+    }
 }

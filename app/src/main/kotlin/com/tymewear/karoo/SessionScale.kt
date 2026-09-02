@@ -9,7 +9,8 @@ sealed class ScaleStatus {
 /**
  * Today's strap scale factor — how far this session's tidal-volume scale sits from the
  * rider's baseline — estimated from the heart-rate-matched VE deviation (spec §3.1) and
- * held for the ride once learned (spec §3.3).
+ * held for the ride once learned (spec §3.3). Once locked, any out-of-range offer is ignored
+ * and the lock is retained.
  */
 class SessionScale(
     private val windowSeconds: Int = DEFAULT_WINDOW_SECONDS,
@@ -31,7 +32,7 @@ class SessionScale(
         val last = lastUpdateAt
         if (last != null && recordingSeconds - last < updateIntervalSeconds) return
         val raw = 1.0 + devHr.fraction
-        if (raw < minScale || raw > maxScale) { status = ScaleStatus.OutOfRange(raw); lastUpdateAt = recordingSeconds; return }
+        if (raw < minScale || raw > maxScale) { if (status !is ScaleStatus.Locked) { status = ScaleStatus.OutOfRange(raw); lastUpdateAt = recordingSeconds }; return }
         easeFrom = displayed(recordingSeconds) ?: 1.0
         easeStart = recordingSeconds
         status = ScaleStatus.Locked(raw)

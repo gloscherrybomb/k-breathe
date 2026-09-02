@@ -162,7 +162,10 @@ recorded VE untouched.
   colours don't flicker). A ride that never meets the rule stays on configured
   thresholds and reports `cal`.
 - **Clamp** to [0.6, 1.6]. Outside that range the strap is probably not worn correctly;
-  publish `n/a` and leave thresholds uncorrected rather than colour from a guess.
+  publish `n/a` and leave thresholds uncorrected rather than colour from a guess. This
+  applies only while nothing is locked yet: an out-of-range reading arriving *after* a
+  lock is ignored and the lock is kept, so one noisy heart-rate bin cannot undo a
+  learned scale.
 
 Day quality is published whenever both devP and devHR are confident, and keeps updating
 for the whole ride (it is a live signal, unlike the scale).
