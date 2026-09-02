@@ -1,8 +1,5 @@
 package com.tymewear.karoo
 
-/** One comparable observation: the ventilation produced at a given load. */
-data class LoadVeSample(val loadW: Double, val ve: Double)
-
 /**
  * Selects samples where load has been stable long enough for ventilation to have
  * settled. Ventilation lags load by tens of seconds, so a sample taken mid-surge
@@ -72,7 +69,7 @@ class SteadyStateDetector(
         val variance = present.sumOf { (it - mean) * (it - mean) } / present.size
         if (Math.sqrt(variance) / mean >= maxCoefficientOfVariation) return null
 
-        return LoadVeSample(loadW, veWindow.average())
+        return LoadVeSample(loadW, 0.0, veWindow.average())
     }
 
     /** Discard accumulated history. Called when a ride restarts so a new effort
