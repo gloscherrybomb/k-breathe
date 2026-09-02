@@ -42,6 +42,7 @@ class TymewearDevice(
                 DataType.dataTypeId(extension, "mi_bat"),
                 DataType.dataTypeId(extension, "ve_zones"),
                 DataType.dataTypeId(extension, "vent_state"),
+                DataType.dataTypeId(extension, "power_vz"),
             ),
             displayName = displayName,
         )

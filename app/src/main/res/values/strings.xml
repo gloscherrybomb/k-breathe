@@ -25,4 +25,7 @@
 
     <string name="vent_state_name">Vent State</string>
     <string name="vent_state_desc">Beta. Today vs. your normal (after strap-scale correction), and today\'s strap scale</string>
+
+    <string name="power_vz_name">Power + VE zone</string>
+    <string name="power_vz_desc">3s power with a strip coloured by your current ventilation zone</string>
 </resources>

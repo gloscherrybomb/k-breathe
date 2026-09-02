@@ -43,6 +43,7 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
             MiBatteryDataType(extension),
             TimeInZonesDataType(extension),
             VentilatoryStateDataType(extension),
+            PowerZoneDataType(extension),
         )
     }
 
@@ -92,12 +93,17 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
                 scope.launch {
                     karooSystem.streamDataFlow(DataType.Type.POWER).collect { state ->
                         when (state) {
-                            is StreamState.Streaming ->
+                            is StreamState.Streaming -> {
+                                TymewearData.updatePower(state.dataPoint.singleValue)
                                 VentilatoryState.onSample(
                                     state.dataPoint.singleValue,
                                     TymewearData.heartRate.value,
                                 )
-                            else -> VentilatoryState.onSample(null, TymewearData.heartRate.value)
+                            }
+                            else -> {
+                                TymewearData.updatePower(null)
+                                VentilatoryState.onSample(null, TymewearData.heartRate.value)
+                            }
                         }
                     }
                 }

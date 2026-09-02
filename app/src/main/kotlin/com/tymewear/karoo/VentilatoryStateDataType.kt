@@ -75,6 +75,8 @@ class VentilatoryStateDataType(extension: String) : DataTypeImpl(extension, "ven
                 }
                 views.setTextViewText(R.id.text_value, value)
                 views.setTextViewText(R.id.text_unit, unit)
+                views.setFloat(R.id.text_value, "setTextSize", config.textSize * 0.6f)
+                views.setFloat(R.id.text_unit, "setTextSize", config.textSize * 0.25f)
                 // Lower ventilation for the same work is the good direction.
                 val colour = when {
                     dq == null -> Constants.NO_DATA_COLOR

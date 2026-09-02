@@ -62,4 +62,11 @@
         graphical="true"
         icon="@drawable/ic_breathing" />
 
+    <DataType
+        typeId="power_vz"
+        displayName="@string/power_vz_name"
+        description="@string/power_vz_desc"
+        graphical="true"
+        icon="@drawable/ic_breathing" />
+
 </ExtensionInfo>

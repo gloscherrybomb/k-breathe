@@ -85,6 +85,11 @@ object TymewearData {
 
     fun updateBattery(percent: Int) { _batteryPercent.value = percent }
 
+    private val _powerW = MutableStateFlow<Double?>(null)
+    /** Latest Karoo power sample, null when the power stream is unavailable. Independent of the Beta. */
+    val powerW: StateFlow<Double?> = _powerW.asStateFlow()
+    fun updatePower(w: Double?) { _powerW.value = w }
+
     // Zone time tracking (live, for TimeInZonesDataType display)
     private val _zoneTimes = MutableStateFlow(ZoneTimes())
     val zoneTimes: StateFlow<ZoneTimes> = _zoneTimes.asStateFlow()
