@@ -3,9 +3,9 @@
   "packageName": "com.tymewear.karoo",
   "iconUrl": "https://github.com/gloscherrybomb/k-breathe/releases/latest/download/icon.png",
   "latestApkUrl": "https://github.com/gloscherrybomb/k-breathe/releases/latest/download/k-breathe.apk",
-  "latestVersion": "0.5.0",
-  "latestVersionCode": 10,
+  "latestVersion": "0.6.0",
+  "latestVersionCode": 11,
   "developer": "gloscherrybomb",
-  "description": "Displays live breathing data from the Tymewear VitalPro sensor on your Karoo. Includes VE, breathing rate, tidal volume, mobilization index, VE graph and time-in-zones fields with FIT recording, plus an opt-in Beta that learns your own ventilation baseline and shows how today differs from it.",
-  "releaseNotes": "Fixes corrupted breathing data after sensor dropouts (the app wrote the last value or 0 for the rest of the ride), a reconnect watchdog that only fired once, and Bluetooth scans being silently rejected. Zone colours now match the value shown. New: Ventilatory State (Beta, off by default) - learns your normal ventilation per power and shows today's deviation, VT1 power and breathing-rate drift. Needs a power meter. Enable in the app under Ventilatory State (Beta); the first two rides calibrate."
+  "description": "Displays live breathing data from the Tymewear VitalPro sensor on your Karoo. Includes VE, breathing rate, tidal volume, mobilization index, VE graph, time-in-zones and a power field coloured by your breathing zone, with FIT recording, plus an opt-in Beta that corrects the zones for the strap's day-to-day scale and shows how today compares with your normal.",
+  "releaseNotes": "Beta rework: zone colours are now corrected for the strap's day-to-day volume scale (learned from the third ride, needs power and heart rate). Vent State shows day quality and the strap scale. New Power + VE zone field: 3s power with a strip in your current breathing zone. Settings can suggest VT1/VT2 changes. Removed: VT1 Power and BR Drift fields. The 0.5.0 baseline is discarded and calibration starts again."
 }
