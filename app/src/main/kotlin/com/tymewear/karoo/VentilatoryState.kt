@@ -58,7 +58,7 @@ object VentilatoryState {
 
     private var baseline = VeBaseline()
     private var detector = SteadyStateDetector()
-    private var deviationCalc = EfficiencyDeviation(baseline)
+    private var deviationCalc = BinDeviation(baseline)
     private var drift = DriftTracker()
     // Read without the lock from data-field coroutines via isEnabled(); written under
     // `lock` from load()/reloadEnabledFlag(). @Volatile makes the unsynchronised read safe.
@@ -102,7 +102,7 @@ object VentilatoryState {
             enabled = prefs.getBoolean(KEY_ENABLED, false)
             rideCount = prefs.getInt(KEY_RIDES, 0)
             baseline = VeBaseline.deserialise(prefs.getString(KEY_BASELINE, "") ?: "")
-            deviationCalc = EfficiencyDeviation(baseline)
+            deviationCalc = BinDeviation(baseline)
             _baselineBins.value = baseline.coveredBins()
             Timber.d("VentilatoryState loaded: enabled=$enabled bins=${baseline.coveredBins()} rides=$rideCount")
         }
@@ -119,7 +119,7 @@ object VentilatoryState {
         synchronized(lock) {
             // lifecycle.isActive guards against accumulating (and re-sorting, once per
             // second, inside this lock) samples while no ride is recording — e.g. a
-            // trainer idling with power streaming. Without it EfficiencyDeviation grows
+            // trainer idling with power streaming. Without it BinDeviation grows
             // unboundedly and publishes a deviation that onRideStart then wipes, so the
             // rider sees a number vanish the moment they press record.
             if (!enabled || !lifecycle.isActive || lifecycle.isPaused) return
@@ -138,7 +138,7 @@ object VentilatoryState {
             }
 
             val sample = detector.onSample(loadW, ve, nowMs) ?: return
-            deviationCalc.add(sample)
+            deviationCalc.add(sample.loadW, sample.ve)
             // Buffered, not folded into the baseline yet — see the class doc. The
             // baseline is only updated with this ride's samples in onRideEnd().
             if (rideSamples.size < MAX_RIDE_SAMPLES) rideSamples.add(sample)
@@ -227,7 +227,7 @@ object VentilatoryState {
             // method) with nothing having started, spuriously incrementing rideCount
             // and re-persisting an unchanged baseline.
             if (!lifecycle.onIdle()) return
-            for (sample in rideSamples) baseline.update(sample)
+            for (sample in rideSamples) baseline.update(sample.loadW, sample.ve)
             rideSamples.clear()
             _baselineBins.value = baseline.coveredBins()
             rideCount += 1
@@ -247,7 +247,7 @@ object VentilatoryState {
     fun resetBaseline(context: Context) {
         synchronized(lock) {
             baseline = VeBaseline()
-            deviationCalc = EfficiencyDeviation(baseline)
+            deviationCalc = BinDeviation(baseline)
             rideCount = 0
             _baselineBins.value = 0
             persist(context)

@@ -7,7 +7,10 @@ data class Deviation(val fraction: Double, val matchedBins: Int) {
 }
 
 /**
- * Compares observed ventilation against a [VeBaseline] at matched load.
+ * Compares observed ventilation against a [VeBaseline] at matched key (power bin or
+ * heart-rate bin). Used twice per ride: once keyed by power, once by heart rate — the
+ * pair separates a strap scale shift (both move) from a physiological change (only power
+ * moves); see the spec §3.1.
  *
  * Bin-wise medians are compared, then the median across bins is taken, so a single odd
  * bin cannot swing the answer. Requires several matched bins before reporting anything:
@@ -17,17 +20,16 @@ data class Deviation(val fraction: Double, val matchedBins: Int) {
  * produces a confident, entirely fictional number — this is what corrupted ten of the
  * rider's recorded rides before the recording fix.
  */
-class EfficiencyDeviation(
+class BinDeviation(
     private val baseline: VeBaseline,
-    private val binWidthW: Double = VeBaseline.DEFAULT_BIN_WIDTH_W,
+    private val binWidth: Double = VeBaseline.DEFAULT_BIN_WIDTH_W,
     private val minSamplesPerBin: Int = VeBaseline.DEFAULT_MIN_SAMPLES_PER_BIN,
     private val minMatchedBins: Int = DEFAULT_MIN_MATCHED_BINS,
 ) {
     private val observed = HashMap<Double, MutableList<Double>>()
 
-    fun add(sample: LoadVeSample) {
-        val centre = Math.round(sample.loadW / binWidthW) * binWidthW
-        observed.getOrPut(centre) { ArrayList() }.add(sample.ve)
+    fun add(key: Double, ve: Double) {
+        observed.getOrPut(Math.round(key / binWidth) * binWidth) { ArrayList() }.add(ve)
     }
 
     fun deviation(): Deviation? {
