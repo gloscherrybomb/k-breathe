@@ -24,8 +24,8 @@ class RideLifecycle {
     /**
      * Recording started or resumed.
      *
-     * @return `true` for a fresh start — the caller should reset its pipeline (detector,
-     * deviation, drift, sample buffer, flows). `false` for a resume — the caller should
+     * @return `true` for a fresh start — the caller should reset its pipeline (sampler,
+     * deviations, scale, sample buffer, flows). `false` for a resume — the caller should
      * preserve everything accumulated so far. Clears [isPaused] in both cases.
      */
     fun onRecording(): Boolean {

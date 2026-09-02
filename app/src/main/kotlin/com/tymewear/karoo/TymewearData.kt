@@ -116,9 +116,26 @@ object TymewearData {
     var vo2maxThreshold = Constants.DEFAULT_VO2MAX.toDouble()
         private set
 
-    /** The rider's configured thresholds as one value. */
-    fun currentThresholds(): ZoneThresholds =
+    /** The rider's entered thresholds, untouched. Settings and the threshold evidence
+     *  compare against these. */
+    fun configuredThresholds(): ZoneThresholds =
         ZoneThresholds(vt1Threshold, vt2Threshold, topZ4Threshold, vo2maxThreshold)
+
+    /**
+     * The thresholds every zone consumer classifies against: the configured ones scaled
+     * by today's strap scale once the Beta is on and the scale has locked (spec §3.2),
+     * the configured ones otherwise.
+     *
+     * Read per call rather than cached, so a scale that locks or eases mid-ride reaches
+     * the colours without anything having to invalidate a cache. [_veZone] in particular
+     * is recomputed on every breathing packet, so a scale change propagates within one
+     * breath.
+     */
+    fun currentThresholds(): ZoneThresholds =
+        ZoneClassifier.effectiveThresholds(
+            configuredThresholds(),
+            if (VentilatoryState.isEnabled()) VentilatoryState.scale.value else null,
+        )
 
     /** Zone for a VE value the caller is presenting or recording. Callers pass the value
      *  they actually show, so the number and its zone can never disagree. */

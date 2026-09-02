@@ -9,9 +9,9 @@ import org.junit.Test
 class VeBaselineTest {
 
     private fun steady(f: RideFixture): List<LoadVeSample> {
-        val d = SteadyStateDetector()
+        val g = LoadGate()
         val out = ArrayList<LoadVeSample>()
-        for (i in f.watts.indices) d.onSample(f.watts[i], f.ve[i], i * 1000L)?.let { out.add(it) }
+        for (i in f.watts.indices) g.onSample(f.watts[i], f.hr[i], f.ve[i], i * 1000L)?.let { out.add(it) }
         return out
     }
 
@@ -66,8 +66,11 @@ class VeBaselineTest {
         }
         val restored = VeBaseline.deserialise(b.serialise())
         assertEquals(b.coveredBins(), restored.coveredBins())
-        for (p in listOf(100.0, 120.0, 140.0, 160.0, 180.0, 200.0)) {
-            assertEquals(b.expectedVe(p)!!, restored.expectedVe(p)!!, 0.0001)
+        // Compare the bins the fixtures actually produced rather than a fixed load list:
+        // which loads are covered is the sampler's business, not the round trip's.
+        assertTrue("fixtures should cover some bins", b.bins().isNotEmpty())
+        for (bin in b.bins()) {
+            assertEquals(b.expectedVe(bin.centre), restored.expectedVe(bin.centre))
         }
     }
 

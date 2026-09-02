@@ -16,23 +16,24 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 /**
- * Today's ventilatory efficiency against the rider's own baseline. Negative means less
- * ventilation for the same power — fresher, fitter, a good day.
+ * Today's breathing against the rider's own normal for the same effort, once the strap's
+ * volume scale has been removed (spec §3.1). Negative means less ventilation for the same
+ * work — fresher, fitter, a good day.
  *
- * Shows "cal" while the baseline is still being learned. An honest empty state matters
- * more than a number here: a plausible-looking deviation from a thin baseline is exactly
- * the kind of confident fiction this feature must avoid.
+ * Shows "cal" while the baselines and the strap scale are still being learned. An honest
+ * empty state matters more than a number here: a plausible-looking figure from a thin
+ * baseline is exactly the kind of confident fiction this feature must avoid.
  */
 class VentilatoryStateDataType(extension: String) : DataTypeImpl(extension, "vent_state") {
 
     override fun startStream(emitter: Emitter<StreamState>) {
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
         scope.launch {
-            VentilatoryState.deviation.collect { dev ->
+            VentilatoryState.dayQuality.collect { dq ->
                 // A numeric stream has no way to express absence except NotAvailable —
                 // emitting 0.0 as a placeholder would be indistinguishable from a real
-                // "0% deviation" reading downstream.
-                if (!VentilatoryState.isEnabled() || dev == null) {
+                // "exactly my normal" reading downstream.
+                if (!VentilatoryState.isEnabled() || dq == null) {
                     emitter.onNext(StreamState.NotAvailable)
                     return@collect
                 }
@@ -40,7 +41,7 @@ class VentilatoryStateDataType(extension: String) : DataTypeImpl(extension, "ven
                     StreamState.Streaming(
                         DataPoint(
                             dataTypeId = dataTypeId,
-                            values = mapOf(DataType.Field.SINGLE to dev.percent),
+                            values = mapOf(DataType.Field.SINGLE to dq),
                         ),
                     ),
                 )
@@ -55,22 +56,22 @@ class VentilatoryStateDataType(extension: String) : DataTypeImpl(extension, "ven
         val unitSize = config.textSize * 0.25f
 
         scope.launch {
-            VentilatoryState.deviation.collect { dev ->
+            VentilatoryState.dayQuality.collect { dq ->
                 val views = RemoteViews(context.packageName, R.layout.view_vent_state)
                 val text = when {
                     !VentilatoryState.isEnabled() -> "off"
-                    dev == null -> "cal"
-                    else -> String.format("%+.0f%%", dev.percent)
+                    dq == null -> "cal"
+                    else -> String.format("%+.0f%%", dq)
                 }
                 views.setTextViewText(R.id.text_value, text)
                 views.setFloat(R.id.text_value, "setTextSize", valueSize)
                 views.setFloat(R.id.text_unit, "setTextSize", unitSize)
-                views.setTextViewText(R.id.text_unit, if (dev == null) "calibrating" else "vs base")
+                views.setTextViewText(R.id.text_unit, if (dq == null) "calibrating" else "vs base")
                 // Lower ventilation for the same work is the good direction.
                 val colour = when {
-                    dev == null -> Constants.NO_DATA_COLOR
-                    dev.percent <= -5.0 -> Constants.ZONE_COLORS_SOLID[0]
-                    dev.percent >= 5.0 -> Constants.ZONE_COLORS_SOLID[3]
+                    dq == null -> Constants.NO_DATA_COLOR
+                    dq <= -5.0 -> Constants.ZONE_COLORS_SOLID[0]
+                    dq >= 5.0 -> Constants.ZONE_COLORS_SOLID[3]
                     else -> Constants.ZONE_COLORS_SOLID[1]
                 }
                 views.setInt(R.id.container, "setBackgroundColor", colour)

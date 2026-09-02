@@ -131,10 +131,14 @@ class VeGraphDataType(extension: String) : DataTypeImpl(extension, "ve_graph") {
 
         canvas.drawColor(Color.BLACK)
 
-        val vt1 = TymewearData.vt1Threshold
-        val vt2 = TymewearData.vt2Threshold
-        val topZ4 = TymewearData.topZ4Threshold
-        val vo2max = TymewearData.vo2maxThreshold
+        // The bands must match the zone colours every other field shows, so they
+        // come from the one effective-threshold path rather than the raw configured
+        // values (spec §5).
+        val t = TymewearData.currentThresholds()
+        val vt1 = t.vt1
+        val vt2 = t.vt2
+        val topZ4 = t.topZ4
+        val vo2max = t.vo2max
 
         // Auto-scale Y axis
         val maxData = if (points.isNotEmpty()) points.max() else 0.0

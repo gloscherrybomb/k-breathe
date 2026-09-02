@@ -49,8 +49,6 @@ data class PrefsData(
     val maxHr: Float,
     val restingHr: Float,
     val dynamicStateEnabled: Boolean,
-    val driftAlertEnabled: Boolean,
-    val driftAlertPct: Int,
 )
 
 @Composable
@@ -73,8 +71,6 @@ fun MainScreen(
     var maxHr by remember { mutableStateOf(Constants.DEFAULT_MAX_HR.toString()) }
     var restingHr by remember { mutableStateOf(Constants.DEFAULT_RESTING_HR.toString()) }
     var dynamicStateEnabled by remember { mutableStateOf(false) }
-    var driftAlertEnabled by remember { mutableStateOf(false) }
-    var driftAlertPct by remember { mutableStateOf(Constants.STATE_DEFAULT_DRIFT_ALERT_PCT.toString()) }
     var saved by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf<String?>(null) }
     var baselineStatus by remember { mutableStateOf(BaselineStatus(0, 0, 0L)) }
@@ -93,8 +89,6 @@ fun MainScreen(
         maxHr = prefs.maxHr.toString()
         restingHr = prefs.restingHr.toString()
         dynamicStateEnabled = prefs.dynamicStateEnabled
-        driftAlertEnabled = prefs.driftAlertEnabled
-        driftAlertPct = prefs.driftAlertPct.toString()
         // Read from prefs directly, not the in-memory VentilatoryState flow: this
         // screen can be opened by a fresh process before the extension has run in it
         // (a cold start from the launcher icon after process death), when the flow is
@@ -337,30 +331,6 @@ fun MainScreen(
             )
         }
 
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Switch(
-                checked = driftAlertEnabled,
-                onCheckedChange = { driftAlertEnabled = it; saved = false },
-            )
-            Text(
-                text = "Alert on breathing drift",
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-        }
-
-        OutlinedTextField(
-            value = driftAlertPct,
-            onValueChange = { driftAlertPct = it; saved = false },
-            label = { Text("Drift alert threshold (%)") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            supportingText = { Text("Breathing rate rise vs. this effort's early reference") },
-        )
-
         Spacer(modifier = Modifier.height(8.dp))
 
         if (validationError != null) {
@@ -382,16 +352,13 @@ fun MainScreen(
                 val mBrVal = maxBr.toFloatOrNull()
                 val mHrVal = maxHr.toFloatOrNull()
                 val rHrVal = restingHr.toFloatOrNull()
-                val driftPctVal = driftAlertPct.toIntOrNull()
 
                 val error = when {
                     v1Val == null || v2Val == null || tz4Val == null || voVal == null ||
-                        rBrVal == null || mBrVal == null || mHrVal == null || rHrVal == null ||
-                        driftPctVal == null ->
+                        rBrVal == null || mBrVal == null || mHrVal == null || rHrVal == null ->
                         "All fields must be valid numbers."
                     v1Val <= 0 || v2Val <= 0 || tz4Val <= 0 || voVal <= 0 ||
-                        rBrVal <= 0 || mBrVal <= 0 || mHrVal <= 0 || rHrVal <= 0 ||
-                        driftPctVal <= 0 ->
+                        rBrVal <= 0 || mBrVal <= 0 || mHrVal <= 0 || rHrVal <= 0 ->
                         "All values must be positive."
                     v1Val >= v2Val || v2Val >= tz4Val || tz4Val >= voVal ->
                         "Thresholds must be in order: VT1 < VT2 < Top Z4 < VO2max."
@@ -399,8 +366,6 @@ fun MainScreen(
                         "Resting BR must be less than Max BR."
                     rHrVal >= mHrVal ->
                         "Resting HR must be less than Max HR."
-                    driftPctVal > 100 ->
-                        "Drift alert threshold must be 100 or less."
                     else -> null
                 }
 
@@ -421,8 +386,6 @@ fun MainScreen(
                             maxHr = mHrVal!!,
                             restingHr = rHrVal!!,
                             dynamicStateEnabled = dynamicStateEnabled,
-                            driftAlertEnabled = driftAlertEnabled,
-                            driftAlertPct = driftPctVal!!,
                         ),
                     )
                     saved = true

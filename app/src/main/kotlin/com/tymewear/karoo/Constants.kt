@@ -108,17 +108,15 @@ object Constants {
     // Ventilatory state (Beta)
     // -------------------------------------------------------------------------
 
-    /** Minimum baseline bins with coverage before deviation is reported. */
+    /** Minimum covered bins, in each baseline, before the strap scale and day quality
+     *  are reported. */
     const val STATE_MIN_BASELINE_BINS = 3
 
-    /** Minimum rides folded into the baseline before deviation is reported. A single
+    /** Minimum rides folded into the baselines before either is reported. A single
      *  ride satisfies the bin-coverage check on its own, but scoring ride 2 against a
      *  baseline built entirely from ride 1 compares today with one other day — their
      *  between-day scatter is as large as the signal this feature exists to show. */
     const val STATE_MIN_BASELINE_RIDES = 2
-
-    /** Drift percentage that counts as "no longer sustainable" for the optional alert. */
-    const val STATE_DEFAULT_DRIFT_ALERT_PCT = 12
 
     // -------------------------------------------------------------------------
     // Data bounds (for protocol validation)

@@ -62,18 +62,4 @@
         graphical="true"
         icon="@drawable/ic_breathing" />
 
-    <DataType
-        typeId="threshold_power"
-        displayName="@string/threshold_power_name"
-        description="@string/threshold_power_desc"
-        graphical="true"
-        icon="@drawable/ic_breathing" />
-
-    <DataType
-        typeId="br_drift"
-        displayName="@string/br_drift_name"
-        description="@string/br_drift_desc"
-        graphical="true"
-        icon="@drawable/ic_breathing" />
-
 </ExtensionInfo>

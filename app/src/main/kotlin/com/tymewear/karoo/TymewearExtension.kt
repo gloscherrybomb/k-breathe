@@ -43,8 +43,6 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
             MiBatteryDataType(extension),
             TimeInZonesDataType(extension),
             VentilatoryStateDataType(extension),
-            ThresholdPowerDataType(extension),
-            BreathingDriftDataType(extension),
         )
     }
 
@@ -85,14 +83,18 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
 
                 VentilatoryState.load(applicationContext)
 
-                // Power is the load signal for ventilatory state. Same pattern as the
+                // Power is the load signal for the session pipeline, heart rate the
+                // reference the strap scale is estimated at. Same pattern as the
                 // heart-rate stream above; absent power simply yields no samples.
                 scope.launch {
                     karooSystem.streamDataFlow(DataType.Type.POWER).collect { state ->
                         when (state) {
                             is StreamState.Streaming ->
-                                VentilatoryState.onPowerSample(state.dataPoint.singleValue)
-                            else -> VentilatoryState.onPowerSample(null)
+                                VentilatoryState.onSample(
+                                    state.dataPoint.singleValue,
+                                    TymewearData.heartRate.value,
+                                )
+                            else -> VentilatoryState.onSample(null, TymewearData.heartRate.value)
                         }
                     }
                 }
