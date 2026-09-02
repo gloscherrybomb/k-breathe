@@ -37,6 +37,9 @@ import androidx.compose.ui.unit.dp
 import com.tymewear.karoo.BaselineStatus
 import com.tymewear.karoo.Constants
 import com.tymewear.karoo.TymewearData
+import kotlin.math.abs
+import kotlin.math.min
+import kotlin.math.roundToInt
 
 data class PrefsData(
     val sensorId: String,
@@ -57,6 +60,7 @@ fun MainScreen(
     loadPrefs: () -> PrefsData,
     onResetBaseline: () -> Unit,
     loadBaselineStatus: () -> BaselineStatus,
+    loadLastRideScale: () -> Double?,
 ) {
     // Seeded from Constants so these placeholders cannot drift away from the values
     // the rest of the app actually falls back to. They are replaced by the stored
@@ -73,7 +77,7 @@ fun MainScreen(
     var dynamicStateEnabled by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf<String?>(null) }
-    var baselineStatus by remember { mutableStateOf(BaselineStatus(0, 0, 0L)) }
+    var baselineStatus by remember { mutableStateOf(BaselineStatus(0, 0, 0, 0L)) }
     var showResetConfirm by remember { mutableStateOf(false) }
     val isConnected by TymewearData.isConnected.collectAsState()
 
@@ -243,8 +247,10 @@ fun MainScreen(
             color = MaterialTheme.colorScheme.onBackground,
         )
         Text(
-            text = "Compares today's breathing against your own baseline. " +
-                "Requires a power meter paired to the Karoo.",
+            text = "Learns how your breathing normally relates to power and heart rate, " +
+                "corrects today's zone colours for the strap's session-to-session scale, " +
+                "and shows how today compares with your normal. Requires a power meter " +
+                "and heart rate.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onBackground,
         )
@@ -263,7 +269,8 @@ fun MainScreen(
             )
         }
 
-        val binsReady = baselineStatus.coveredBins >= Constants.STATE_MIN_BASELINE_BINS
+        val coveredBins = min(baselineStatus.coveredBins, baselineStatus.coveredHrBins)
+        val binsReady = coveredBins >= Constants.STATE_MIN_BASELINE_BINS
         val ridesReady = baselineStatus.rideCount >= Constants.STATE_MIN_BASELINE_RIDES
         val lastUpdated = if (baselineStatus.updatedAtMs > 0) {
             " Last updated " + DateUtils.getRelativeTimeSpanString(
@@ -276,17 +283,28 @@ fun MainScreen(
         }
         Text(
             text = if (binsReady && ridesReady) {
-                "Baseline: ${baselineStatus.coveredBins} power ranges learned across " +
+                "Baseline: $coveredBins power/heart-rate ranges learned across " +
                     "${baselineStatus.rideCount} rides.$lastUpdated"
             } else {
-                "Baseline: calibrating (${baselineStatus.coveredBins} of " +
-                    "${Constants.STATE_MIN_BASELINE_BINS} power ranges, " +
+                "Baseline: calibrating ($coveredBins of " +
+                    "${Constants.STATE_MIN_BASELINE_BINS} power/heart-rate ranges, " +
                     "${baselineStatus.rideCount} of ${Constants.STATE_MIN_BASELINE_RIDES} " +
                     "rides). Ride steadily with power to build it.$lastUpdated"
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onBackground,
         )
+
+        val lastScale = remember { loadLastRideScale() }
+        if (lastScale != null) {
+            val pct = ((lastScale - 1.0) * 100).roundToInt()
+            Text(
+                text = "Last ride the strap read ${abs(pct)}% ${if (pct < 0) "low" else "high"}" +
+                    if (abs(pct) >= 10) " — check strap tension and position." else ".",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+        }
 
         OutlinedButton(
             onClick = { showResetConfirm = true },

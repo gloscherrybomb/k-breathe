@@ -8,8 +8,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:baselineAligned="true"
-        android:orientation="horizontal">
+        android:gravity="center"
+        android:orientation="vertical">
 
         <TextView
             android:id="@+id/text_value"
@@ -24,7 +24,6 @@
             android:id="@+id/text_unit"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="2dp"
             android:text="vs base"
             android:textColor="#B3FFFFFF"
             android:textSize="10sp" />

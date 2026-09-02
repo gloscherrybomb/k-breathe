@@ -13,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 /**
@@ -52,26 +53,33 @@ class VentilatoryStateDataType(extension: String) : DataTypeImpl(extension, "ven
 
     override fun startView(context: Context, config: ViewConfig, emitter: ViewEmitter) {
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + Constants.coroutineExceptionHandler)
-        val valueSize = config.textSize * 0.6f
-        val unitSize = config.textSize * 0.25f
 
         scope.launch {
-            VentilatoryState.dayQuality.collect { dq ->
+            combine(
+                VentilatoryState.dayQuality,
+                VentilatoryState.scale,
+                VentilatoryState.scaleStatus,
+            ) { dq, sc, st -> Triple(dq, sc, st) }.collect { (dq, sc, st) ->
                 val views = RemoteViews(context.packageName, R.layout.view_vent_state)
-                val text = when {
-                    !VentilatoryState.isEnabled() -> "off"
+                val enabled = VentilatoryState.isEnabled()
+                val value = when {
+                    !enabled -> "off"
                     dq == null -> "cal"
                     else -> String.format("%+.0f%%", dq)
                 }
-                views.setTextViewText(R.id.text_value, text)
-                views.setFloat(R.id.text_value, "setTextSize", valueSize)
-                views.setFloat(R.id.text_unit, "setTextSize", unitSize)
-                views.setTextViewText(R.id.text_unit, if (dq == null) "calibrating" else "vs base")
+                val unit = when {
+                    !enabled -> ""
+                    st is ScaleStatus.OutOfRange -> "scale n/a"
+                    sc != null -> String.format("×%.2f", sc)
+                    else -> "learning"
+                }
+                views.setTextViewText(R.id.text_value, value)
+                views.setTextViewText(R.id.text_unit, unit)
                 // Lower ventilation for the same work is the good direction.
                 val colour = when {
                     dq == null -> Constants.NO_DATA_COLOR
                     dq <= -5.0 -> Constants.ZONE_COLORS_SOLID[0]
-                    dq >= 5.0 -> Constants.ZONE_COLORS_SOLID[3]
+                    dq >= 5.0 -> Constants.ZONE_COLORS_SOLID[2]
                     else -> Constants.ZONE_COLORS_SOLID[1]
                 }
                 views.setInt(R.id.container, "setBackgroundColor", colour)

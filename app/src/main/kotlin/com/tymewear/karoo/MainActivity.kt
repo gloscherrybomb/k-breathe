@@ -57,6 +57,9 @@ class MainActivity : ComponentActivity() {
                     loadBaselineStatus = {
                         VentilatoryState.persistedStatus(applicationContext)
                     },
+                    loadLastRideScale = {
+                        VentilatoryState.lastRideScale(applicationContext)
+                    },
                 )
             }
         }

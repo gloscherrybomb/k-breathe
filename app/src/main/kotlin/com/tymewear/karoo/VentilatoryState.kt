@@ -10,6 +10,7 @@ import timber.log.Timber
  *  run in a process where [VentilatoryState.load] has never executed. */
 data class BaselineStatus(
     val coveredBins: Int,
+    val coveredHrBins: Int,
     val rideCount: Int,
     val updatedAtMs: Long,
 )
@@ -286,8 +287,13 @@ object VentilatoryState {
     fun persistedStatus(context: Context): BaselineStatus {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val persisted = VeBaseline.deserialise(prefs.getString(KEY_BASELINE, "") ?: "")
+        val persistedHr = VeBaseline.deserialise(
+            prefs.getString(KEY_HR_BASELINE, "") ?: "",
+            binWidth = VeBaseline.DEFAULT_HR_BIN_WIDTH,
+        )
         return BaselineStatus(
             coveredBins = persisted.coveredBins(),
+            coveredHrBins = persistedHr.coveredBins(),
             rideCount = prefs.getInt(KEY_RIDES, 0),
             updatedAtMs = prefs.getLong(KEY_UPDATED, 0L),
         )

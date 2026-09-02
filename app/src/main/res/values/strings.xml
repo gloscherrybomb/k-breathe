@@ -24,5 +24,5 @@
     <string name="ve_zones_desc">Time spent in each ventilation zone</string>
 
     <string name="vent_state_name">Vent State</string>
-    <string name="vent_state_desc">Beta. Today\'s ventilatory efficiency vs. your own baseline</string>
+    <string name="vent_state_desc">Beta. Today vs. your normal (after strap-scale correction), and today\'s strap scale</string>
 </resources>
