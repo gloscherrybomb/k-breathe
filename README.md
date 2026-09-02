@@ -81,7 +81,12 @@ All breathing data is recorded to FIT files as developer fields during rides:
 - `tyme_mobilization_index` (%)
 - `tyme_percent_brr` (%)
 
-Session summary includes time and percentage spent in each VE zone. FIT files are compatible with the [Tymewear Dashboard](https://dashboard.tymewear.com/).
+Session summary includes time and percentage spent in each VE zone, plus:
+
+- `tyme_ve_scale` — today's strap scale factor (Beta, session)
+- `tyme_day_quality` — today's breathing vs. your normal after scale correction, % (Beta, session)
+
+FIT files are compatible with the [Tymewear Dashboard](https://dashboard.tymewear.com/).
 
 ## Installation
 

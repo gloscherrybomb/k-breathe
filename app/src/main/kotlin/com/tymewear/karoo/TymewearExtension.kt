@@ -306,21 +306,26 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
         val zt = TymewearData.zoneTimes.value
         if (zt.total == 0L) return
 
+        val zoneFields = listOf(
+            FieldValue(Protocol.FIT_FIELD_VE_ZONE1_TIME, zt.z1 / 60.0),
+            FieldValue(Protocol.FIT_FIELD_VE_ZONE1_PCT, zt.z1 * 100.0 / zt.total),
+            FieldValue(Protocol.FIT_FIELD_VE_ZONE2_TIME, zt.z2 / 60.0),
+            FieldValue(Protocol.FIT_FIELD_VE_ZONE2_PCT, zt.z2 * 100.0 / zt.total),
+            FieldValue(Protocol.FIT_FIELD_VE_ZONE3_TIME, zt.z3 / 60.0),
+            FieldValue(Protocol.FIT_FIELD_VE_ZONE3_PCT, zt.z3 * 100.0 / zt.total),
+            FieldValue(Protocol.FIT_FIELD_VE_ZONE4_TIME, zt.z4 / 60.0),
+            FieldValue(Protocol.FIT_FIELD_VE_ZONE4_PCT, zt.z4 * 100.0 / zt.total),
+            FieldValue(Protocol.FIT_FIELD_VE_ZONE5_TIME, zt.z5 / 60.0),
+            FieldValue(Protocol.FIT_FIELD_VE_ZONE5_PCT, zt.z5 * 100.0 / zt.total),
+        )
+
+        val (scale, dayQuality) = VentilatoryState.summaryForFit()
+        val extra = ArrayList<FieldValue>()
+        if (VentilatoryState.isEnabled() && scale != null) extra.add(FieldValue(Protocol.FIT_FIELD_VE_SCALE, scale))
+        if (VentilatoryState.isEnabled() && dayQuality != null) extra.add(FieldValue(Protocol.FIT_FIELD_DAY_QUALITY, dayQuality))
+
         emitter.onNext(
-            WriteToSessionMesg(
-                listOf(
-                    FieldValue(Protocol.FIT_FIELD_VE_ZONE1_TIME, zt.z1 / 60.0),
-                    FieldValue(Protocol.FIT_FIELD_VE_ZONE1_PCT, zt.z1 * 100.0 / zt.total),
-                    FieldValue(Protocol.FIT_FIELD_VE_ZONE2_TIME, zt.z2 / 60.0),
-                    FieldValue(Protocol.FIT_FIELD_VE_ZONE2_PCT, zt.z2 * 100.0 / zt.total),
-                    FieldValue(Protocol.FIT_FIELD_VE_ZONE3_TIME, zt.z3 / 60.0),
-                    FieldValue(Protocol.FIT_FIELD_VE_ZONE3_PCT, zt.z3 * 100.0 / zt.total),
-                    FieldValue(Protocol.FIT_FIELD_VE_ZONE4_TIME, zt.z4 / 60.0),
-                    FieldValue(Protocol.FIT_FIELD_VE_ZONE4_PCT, zt.z4 * 100.0 / zt.total),
-                    FieldValue(Protocol.FIT_FIELD_VE_ZONE5_TIME, zt.z5 / 60.0),
-                    FieldValue(Protocol.FIT_FIELD_VE_ZONE5_PCT, zt.z5 * 100.0 / zt.total),
-                ),
-            ),
+            WriteToSessionMesg(zoneFields + extra),
         )
     }
 

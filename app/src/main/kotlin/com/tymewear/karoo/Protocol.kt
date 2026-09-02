@@ -376,6 +376,20 @@ object Protocol {
         units = "%",
     )
 
+    val FIT_FIELD_VE_SCALE = DeveloperField(
+        fieldDefinitionNumber = 37,
+        fitBaseTypeId = FIT_FLOAT32,
+        fieldName = "tyme_ve_scale",
+        units = "",
+    )
+
+    val FIT_FIELD_DAY_QUALITY = DeveloperField(
+        fieldDefinitionNumber = 38,
+        fitBaseTypeId = FIT_FLOAT32,
+        fieldName = "tyme_day_quality",
+        units = "%",
+    )
+
     // -------------------------------------------------------------------------
     // Ventilation zone thresholds (Tymewear 5-zone model, Feb 2026 update)
     // -------------------------------------------------------------------------
