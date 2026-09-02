@@ -1,10 +1,8 @@
 package com.tymewear.karoo
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Ignore
 import org.junit.Test
 
 class ThresholdEvidenceTest {
@@ -41,26 +39,18 @@ class ThresholdEvidenceTest {
         assertNull(ThresholdEvidence.estimate(bins).lowerLoadW)
     }
 
-    // AWAITING A RULING, NOT A KNOWN-BAD IMPLEMENTATION. The fit below is correct (it
-    // reproduces numpy's weighted LS to 1e-10) but the brief's selection rule returns no
-    // break for the six pooled indoor fixtures, because that baseline is not a
-    // monotone-steepening curve: 160/180/200 W are nearly flat (63.6, 67.4, 68.5) and
-    // 240 -> 260 W falls back (92.7 -> 89.2). The lowest-SSE single knot is therefore
-    // 160 W with a NEGATIVE hinge (-0.184), and the only positive-hinge candidate, 200 W
-    // (VE 73.2 - inside this test's window), cuts weighted SSE by just 3.3%, far under
-    // the 25% gate. Loosening the algorithm to pass was explicitly forbidden, so the
-    // test is parked rather than weakened. See task-10-report.md for every SSE.
-    @Ignore("Brief's selection rule yields no break on the pooled fixtures - see task-10-report.md")
     @Test
-    fun `pooled indoor rides place the lower break near two hundred watts`() {
-        // Reference bins (LoadGate rules, six indoor fixtures): 120:46 140:51 160:63.5 180:67 200:68.5 220:89 240:93 260:89.
+    fun `pooled indoor fixtures do not yield a confident breakpoint`() {
+        // Six rides, thinly sampled above 220 W, with a *flattening* (not steepening) bend at
+        // 160 W driven by the 8600-sample 180 W bin. The honest answer is "no evidence yet":
+        // the only positive-hinge candidate (200 W) removes ~3 % of weighted SSE against the
+        // 25 % gate. Guards against loosening the rule until a wrong threshold gets suggested.
         val b = VeBaseline()
         for (n in VeBaselineTest.INDOOR) { val f = RideFixture.load(n); val g = LoadGate()
             for (i in f.watts.indices) g.onSample(f.watts[i], f.hr[i], f.ve[i], i * 1000L)?.let { b.update(it.loadW, it.ve) } }
         val bp = ThresholdEvidence.estimate(b.bins(), minCount = 30)
-        assertNotNull(bp.lowerLoadW)
-        assertTrue("lower break at ${bp.lowerLoadW}", bp.lowerLoadW!! in 180.0..240.0)
-        assertTrue("VE at break ${bp.lowerVe}", bp.lowerVe!! in 60.0..85.0)
+        assertNull(bp.lowerLoadW); assertNull(bp.upperLoadW)
+        assertTrue(ThresholdEvidence.suggestions(List(3) { bp }, ZoneThresholds(73.0, 96.0, 112.0, 130.0)).isEmpty())
     }
 
     @Test

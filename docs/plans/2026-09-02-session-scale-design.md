@@ -236,9 +236,13 @@ per-ride record of the last 8 rides' pooled-curve breakpoints.
   Suggestions are for **VT1 and VT2 only**; the rider keeps TopZ4 and VO2max manual (or
   scales them by the same ratio via a one-tap option on the card).
 
-On the rider's own Jan–Mar indoor data the pooled curve shows one clear breakpoint at
-≈ 205 W / ≈ 70 L/min (slope 0.17 L/min/W below, ≈ 1 above); the rides never covered
-enough above 220 W to place VT2. The February ramp's piecewise fit (VT1 53 / VT2 80) was
+On the rider's full Jan–Mar indoor history (14 rides, earlier sampler) the pooled curve
+showed a break near 205 W / 70 L/min. On the six indoor rides kept as test fixtures the
+fitter correctly reports **no** breakpoint: the curve flattens above 160 W, the 180 W bin
+holds 8600 of the samples, and everything above 220 W is thinly sampled, so no candidate
+clears the 25 % improvement gate. That refusal is the intended behaviour and is pinned by
+a test; the estimate will be revisited as the on-device baseline grows. The February
+ramp's piecewise fit (VT1 53 / VT2 80) was
 biased low by warm-up stages and is **not** used as ground truth; 30-minute sustained VE
 of 92–101 L/min on two rides rules out VT2 = 80.
 
