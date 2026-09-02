@@ -32,6 +32,7 @@ class MainActivity : ComponentActivity() {
                             .putFloat("max_hr", prefs.maxHr)
                             .putFloat("resting_hr", prefs.restingHr)
                             .putBoolean("dynamic_state_enabled", prefs.dynamicStateEnabled)
+                            .putBoolean("threshold_auto_apply", prefs.autoApplyThresholds)
                             .apply()
                         // Reload thresholds for immediate effect
                         TymewearData.loadThresholds(applicationContext)
@@ -49,6 +50,7 @@ class MainActivity : ComponentActivity() {
                             maxHr = p.getFloat("max_hr", Constants.DEFAULT_MAX_HR),
                             restingHr = p.getFloat("resting_hr", Constants.DEFAULT_RESTING_HR),
                             dynamicStateEnabled = p.getBoolean("dynamic_state_enabled", false),
+                            autoApplyThresholds = p.getBoolean("threshold_auto_apply", false),
                         )
                     },
                     onResetBaseline = {
@@ -59,6 +61,21 @@ class MainActivity : ComponentActivity() {
                     },
                     loadLastRideScale = {
                         VentilatoryState.lastRideScale(applicationContext)
+                    },
+                    loadSuggestions = {
+                        VentilatoryState.suggestions(applicationContext)
+                    },
+                    onApplySuggestion = { s ->
+                        VentilatoryState.applySuggestion(applicationContext, s)
+                    },
+                    onDismissSuggestion = { s ->
+                        VentilatoryState.dismissSuggestion(applicationContext, s)
+                    },
+                    loadChangeHistory = {
+                        VentilatoryState.changeHistory(applicationContext)
+                    },
+                    onRevertChange = { change ->
+                        VentilatoryState.revert(applicationContext, change)
                     },
                 )
             }

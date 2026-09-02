@@ -1,9 +1,11 @@
 package com.tymewear.karoo
 
 import android.content.Context
+import android.content.SharedPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlin.math.abs
 import timber.log.Timber
 
 /** Baseline status read straight from prefs, for callers (the settings screen) that may
@@ -14,6 +16,26 @@ data class BaselineStatus(
     val rideCount: Int,
     val updatedAtMs: Long,
 )
+
+/** One applied threshold change, both VE values in L/min, for the settings screen's
+ *  revertible history. */
+data class ThresholdChange(val kind: ThresholdKind, val fromVe: Double, val toVe: Double, val atMs: Long) {
+    fun serialise(): String = "${kind.name}:$fromVe:$toVe:$atMs"
+
+    companion object {
+        /** Tolerant by design, like [Breakpoints.deserialise]: a corrupt preference must
+         *  leave the rider with no history entry, never crash the extension. */
+        fun deserialise(s: String): ThresholdChange? {
+            val f = s.split(":")
+            if (f.size != 4) return null
+            val kind = runCatching { ThresholdKind.valueOf(f[0]) }.getOrNull() ?: return null
+            val fromVe = f[1].toDoubleOrNull() ?: return null
+            val toVe = f[2].toDoubleOrNull() ?: return null
+            val atMs = f[3].toLongOrNull() ?: return null
+            return ThresholdChange(kind, fromVe, toVe, atMs)
+        }
+    }
+}
 
 /**
  * Owns the session-scale pipeline across a ride: the Android-side shell around
@@ -48,6 +70,19 @@ object VentilatoryState {
     private const val KEY_ENABLED = "dynamic_state_enabled"
     private const val KEY_LAST_SCALE = "last_ride_scale"      // float; 0 = none
     private const val KEY_LAST_DAY_QUALITY = "last_ride_day_quality"
+    private const val KEY_EVIDENCE_HISTORY = "threshold_evidence_history"
+    private const val KEY_AUTO_APPLY = "threshold_auto_apply"
+    private const val KEY_DISMISSED_VT1 = "threshold_dismissed_vt1"
+    private const val KEY_DISMISSED_VT2 = "threshold_dismissed_vt2"
+    private const val KEY_CHANGE_HISTORY = "threshold_change_history"
+
+    private const val MAX_EVIDENCE = 8
+    private const val MAX_CHANGES = 5
+
+    /** A suggestion is suppressed once it lands this close to the value the rider last
+     *  dismissed for that threshold — dismissing is "not this number", not "never ask
+     *  again". */
+    private const val DISMISS_TOLERANCE_VE = 3.0
 
     private val lock = Any()
 
@@ -55,6 +90,9 @@ object VentilatoryState {
     private var hrBaseline = VeBaseline(binWidth = VeBaseline.DEFAULT_HR_BIN_WIDTH)
     private var rideCount = 0
     private var pipeline = newPipeline()
+
+    /** Last [MAX_EVIDENCE] rides' pooled-curve breakpoints (spec §6), oldest first. */
+    private var evidenceHistory: List<Breakpoints> = emptyList()
 
     /** 1 Hz ticks this ride has been recording for — pause does not advance it, so the
      *  pipeline's scale window counts recording time only (spec §7). */
@@ -101,7 +139,7 @@ object VentilatoryState {
 
     fun load(context: Context) {
         synchronized(lock) {
-            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val prefs = prefs(context)
             enabled = prefs.getBoolean(KEY_ENABLED, false)
             rideCount = prefs.getInt(KEY_RIDES, 0)
             // A stored power baseline with no heart-rate baseline beside it came from the
@@ -118,6 +156,7 @@ object VentilatoryState {
                 rideCount = 0
                 lastRideScale = null
                 lastRideDayQuality = null
+                evidenceHistory = emptyList()
                 Timber.i("Baseline from 0.5.0 discarded; recalibrating with the session-scale pipeline")
             } else {
                 powerBaseline = VeBaseline.deserialise(prefs.getString(KEY_BASELINE, "") ?: "")
@@ -127,6 +166,7 @@ object VentilatoryState {
                 )
                 lastRideScale = prefs.getFloat(KEY_LAST_SCALE, 0f).takeIf { it > 0f }?.toDouble()
                 lastRideDayQuality = prefs.getString(KEY_LAST_DAY_QUALITY, null)?.toDoubleOrNull()
+                evidenceHistory = loadEvidenceHistoryFrom(prefs)
             }
             pipeline = newPipeline()
             _baselineBins.value = powerBaseline.coveredBins()
@@ -207,8 +247,7 @@ object VentilatoryState {
      */
     fun reloadEnabledFlag(context: Context) {
         synchronized(lock) {
-            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            enabled = prefs.getBoolean(KEY_ENABLED, false)
+            enabled = prefs(context).getBoolean(KEY_ENABLED, false)
         }
     }
 
@@ -247,6 +286,16 @@ object VentilatoryState {
             lastRideDayQuality = _dayQuality.value
             rideCount += 1
             _baselineBins.value = powerBaseline.coveredBins()
+            // Threshold evidence (spec §6): fit this ride's pooled curve, fold it into
+            // the rolling history, and — only if the rider opted in — silently apply
+            // whatever the updated history now agrees on.
+            val bp = ThresholdEvidence.estimate(powerBaseline.bins())
+            evidenceHistory = (evidenceHistory + bp).takeLast(MAX_EVIDENCE)
+            if (isAutoApply(context)) {
+                for (s in suggestionsFrom(evidenceHistory, TymewearData.configuredThresholds(), context)) {
+                    apply(context, s)
+                }
+            }
             persist(context)
             pipeline = newPipeline()
             // These held this ride's numbers while it was recording; leaving them set
@@ -270,6 +319,10 @@ object VentilatoryState {
             rideCount = 0
             lastRideScale = null
             lastRideDayQuality = null
+            // Evidence was fitted from the baseline this just discarded; keeping it
+            // around would let a stale breakpoint keep suggesting changes against data
+            // that no longer exists.
+            evidenceHistory = emptyList()
             pipeline = newPipeline()
             _baselineBins.value = 0
             persist(context)
@@ -285,7 +338,7 @@ object VentilatoryState {
      * in this same process.
      */
     fun persistedStatus(context: Context): BaselineStatus {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val prefs = prefs(context)
         val persisted = VeBaseline.deserialise(prefs.getString(KEY_BASELINE, "") ?: "")
         val persistedHr = VeBaseline.deserialise(
             prefs.getString(KEY_HR_BASELINE, "") ?: "",
@@ -302,8 +355,111 @@ object VentilatoryState {
     /** The strap scale the last completed ride settled on, read from prefs for the same
      *  reason as [persistedStatus]. Null when no ride has locked a scale yet. */
     fun lastRideScale(context: Context): Double? =
+        prefs(context).getFloat(KEY_LAST_SCALE, 0f).takeIf { it > 0f }?.toDouble()
+
+    /**
+     * Suggestions the persisted evidence history currently supports, filtered against
+     * whatever the rider has dismissed. Reads straight from prefs — like
+     * [persistedStatus] — so it works from a cold process the settings screen may open
+     * with no running extension in it.
+     */
+    fun suggestions(context: Context): List<Suggestion> = synchronized(lock) {
+        // TymewearData's configured thresholds are plain in-memory fields, populated by
+        // the extension's onCreate — absent in a process that cold-started straight into
+        // this settings screen. Reload them from prefs first so a suggestion is never
+        // compared against a stale default instead of what the rider actually entered.
+        TymewearData.loadThresholds(context)
+        suggestionsFrom(loadEvidenceHistoryFrom(prefs(context)), TymewearData.configuredThresholds(), context)
+    }
+
+    /** Applies one suggestion: writes the configured threshold, records the change, and
+     *  clears that kind's dismissed value so a later, different suggestion is not
+     *  filtered by an unrelated dismissal. */
+    fun applySuggestion(context: Context, s: Suggestion) {
+        synchronized(lock) { apply(context, s) }
+    }
+
+    /** Remembers [s]'s suggested value as dismissed for its kind, so it is filtered out
+     *  by [suggestionsFrom] until the estimate moves by [DISMISS_TOLERANCE_VE]. */
+    fun dismissSuggestion(context: Context, s: Suggestion) {
+        synchronized(lock) {
+            val key = if (s.kind == ThresholdKind.VT1) KEY_DISMISSED_VT1 else KEY_DISMISSED_VT2
+            prefs(context).edit().putFloat(key, s.suggestedVe.toFloat()).apply()
+        }
+    }
+
+    /** Most-recently-applied change last, per [MAX_CHANGES]. */
+    fun changeHistory(context: Context): List<ThresholdChange> = synchronized(lock) {
+        loadChangeHistoryFrom(prefs(context))
+    }
+
+    /** Undoes one applied change: writes its `fromVe` back and removes it from the
+     *  history. Does not restore whatever dismissal, if any, [apply] cleared when it
+     *  was made. */
+    fun revert(context: Context, change: ThresholdChange) {
+        synchronized(lock) {
+            val prefs = prefs(context)
+            val key = if (change.kind == ThresholdKind.VT1) "vt1_threshold" else "vt2_threshold"
+            val changes = loadChangeHistoryFrom(prefs).filterNot { it == change }
+            prefs.edit()
+                .putFloat(key, change.fromVe.toFloat())
+                .putString(KEY_CHANGE_HISTORY, changes.joinToString("|") { it.serialise() })
+                .apply()
+            TymewearData.loadThresholds(context)
+        }
+    }
+
+    fun isAutoApply(context: Context): Boolean = prefs(context).getBoolean(KEY_AUTO_APPLY, false)
+
+    private fun prefs(context: Context): SharedPreferences =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getFloat(KEY_LAST_SCALE, 0f).takeIf { it > 0f }?.toDouble()
+
+    private fun loadEvidenceHistoryFrom(prefs: SharedPreferences): List<Breakpoints> {
+        val raw = prefs.getString(KEY_EVIDENCE_HISTORY, "") ?: ""
+        if (raw.isEmpty()) return emptyList()
+        return raw.split("|").mapNotNull { Breakpoints.deserialise(it) }
+    }
+
+    private fun loadChangeHistoryFrom(prefs: SharedPreferences): List<ThresholdChange> {
+        val raw = prefs.getString(KEY_CHANGE_HISTORY, "") ?: ""
+        if (raw.isEmpty()) return emptyList()
+        return raw.split("|").mapNotNull { ThresholdChange.deserialise(it) }
+    }
+
+    /** [ThresholdEvidence.suggestions] on [history]/[configured], with whatever the
+     *  rider has dismissed for each kind filtered back out. */
+    private fun suggestionsFrom(history: List<Breakpoints>, configured: ZoneThresholds, context: Context): List<Suggestion> {
+        val prefs = prefs(context)
+        return ThresholdEvidence.suggestions(history, configured).filter { s ->
+            val dismissed = dismissedVe(prefs, s.kind)
+            dismissed == null || abs(s.suggestedVe - dismissed) >= DISMISS_TOLERANCE_VE
+        }
+    }
+
+    private fun dismissedVe(prefs: SharedPreferences, kind: ThresholdKind): Double? {
+        val key = if (kind == ThresholdKind.VT1) KEY_DISMISSED_VT1 else KEY_DISMISSED_VT2
+        return if (prefs.contains(key)) prefs.getFloat(key, 0f).toDouble() else null
+    }
+
+    /** Writes one suggestion's threshold, appends the change to history, clears that
+     *  kind's dismissal, and reloads [TymewearData] so the new threshold takes effect
+     *  immediately. Called both from the settings screen (via [applySuggestion]) and,
+     *  under auto-apply, from [onRideEnd] — both already hold [lock] when this runs.
+     *  Safe to call while holding it: [TymewearData.loadThresholds] only reads prefs
+     *  and plain [TymewearData] fields, it never calls back into [VentilatoryState]. */
+    private fun apply(context: Context, s: Suggestion) {
+        val prefs = prefs(context)
+        val key = if (s.kind == ThresholdKind.VT1) "vt1_threshold" else "vt2_threshold"
+        val dismissKey = if (s.kind == ThresholdKind.VT1) KEY_DISMISSED_VT1 else KEY_DISMISSED_VT2
+        val change = ThresholdChange(s.kind, s.currentVe, s.suggestedVe, System.currentTimeMillis())
+        val changes = (loadChangeHistoryFrom(prefs) + change).takeLast(MAX_CHANGES)
+        prefs.edit()
+            .putFloat(key, s.suggestedVe.toFloat())
+            .remove(dismissKey)
+            .putString(KEY_CHANGE_HISTORY, changes.joinToString("|") { it.serialise() })
+            .apply()
+        TymewearData.loadThresholds(context)
+    }
 
     /** For the FIT session summary: this ride's values while recording, else the last
      *  ride's — the summary is written after the Idle transition has already cleared the
@@ -313,7 +469,7 @@ object VentilatoryState {
     }
 
     private fun persist(context: Context) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+        prefs(context).edit()
             .putString(KEY_BASELINE, powerBaseline.serialise())
             .putString(KEY_HR_BASELINE, hrBaseline.serialise())
             .putLong(KEY_UPDATED, System.currentTimeMillis())
@@ -322,6 +478,7 @@ object VentilatoryState {
             // Stored as text, not a float: 0 % day quality is a real reading ("exactly my
             // normal"), so it cannot double as the absent marker the way scale 0 can.
             .putString(KEY_LAST_DAY_QUALITY, lastRideDayQuality?.toString())
+            .putString(KEY_EVIDENCE_HISTORY, evidenceHistory.joinToString("|") { it.serialise() })
             .apply()
     }
 }

@@ -16,6 +16,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -36,6 +37,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.tymewear.karoo.BaselineStatus
 import com.tymewear.karoo.Constants
+import com.tymewear.karoo.Suggestion
+import com.tymewear.karoo.ThresholdChange
 import com.tymewear.karoo.TymewearData
 import kotlin.math.abs
 import kotlin.math.min
@@ -52,6 +55,7 @@ data class PrefsData(
     val maxHr: Float,
     val restingHr: Float,
     val dynamicStateEnabled: Boolean,
+    val autoApplyThresholds: Boolean,
 )
 
 @Composable
@@ -61,6 +65,11 @@ fun MainScreen(
     onResetBaseline: () -> Unit,
     loadBaselineStatus: () -> BaselineStatus,
     loadLastRideScale: () -> Double?,
+    loadSuggestions: () -> List<Suggestion>,
+    onApplySuggestion: (Suggestion) -> Unit,
+    onDismissSuggestion: (Suggestion) -> Unit,
+    loadChangeHistory: () -> List<ThresholdChange>,
+    onRevertChange: (ThresholdChange) -> Unit,
 ) {
     // Seeded from Constants so these placeholders cannot drift away from the values
     // the rest of the app actually falls back to. They are replaced by the stored
@@ -75,11 +84,25 @@ fun MainScreen(
     var maxHr by remember { mutableStateOf(Constants.DEFAULT_MAX_HR.toString()) }
     var restingHr by remember { mutableStateOf(Constants.DEFAULT_RESTING_HR.toString()) }
     var dynamicStateEnabled by remember { mutableStateOf(false) }
+    var autoApplyThresholds by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf<String?>(null) }
     var baselineStatus by remember { mutableStateOf(BaselineStatus(0, 0, 0, 0L)) }
     var showResetConfirm by remember { mutableStateOf(false) }
+    var suggestions by remember { mutableStateOf<List<Suggestion>>(emptyList()) }
+    var changes by remember { mutableStateOf<List<ThresholdChange>>(emptyList()) }
     val isConnected by TymewearData.isConnected.collectAsState()
+
+    // After applying or reverting a threshold change: the vt1/vt2 fields, the
+    // suggestion card and the change-history list can all have moved, so all four are
+    // reloaded together rather than patched in place.
+    fun refreshThresholds() {
+        val prefs = loadPrefs()
+        vt1 = prefs.vt1.toString()
+        vt2 = prefs.vt2.toString()
+        suggestions = loadSuggestions()
+        changes = loadChangeHistory()
+    }
 
     LaunchedEffect(Unit) {
         val prefs = loadPrefs()
@@ -93,11 +116,14 @@ fun MainScreen(
         maxHr = prefs.maxHr.toString()
         restingHr = prefs.restingHr.toString()
         dynamicStateEnabled = prefs.dynamicStateEnabled
+        autoApplyThresholds = prefs.autoApplyThresholds
         // Read from prefs directly, not the in-memory VentilatoryState flow: this
         // screen can be opened by a fresh process before the extension has run in it
         // (a cold start from the launcher icon after process death), when the flow is
         // still at its zero default despite a complete baseline sitting in prefs.
         baselineStatus = loadBaselineStatus()
+        suggestions = loadSuggestions()
+        changes = loadChangeHistory()
     }
 
     Column(
@@ -306,6 +332,72 @@ fun MainScreen(
             )
         }
 
+        for (s in suggestions) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = "Recent rides put ${s.kind} near ${"%.0f".format(s.suggestedVe)} " +
+                            "L/min. Configured: ${"%.0f".format(s.currentVe)}.",
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { onApplySuggestion(s); refreshThresholds() }) {
+                            Text("Apply")
+                        }
+                        TextButton(onClick = { onDismissSuggestion(s); suggestions = loadSuggestions() }) {
+                            Text("Dismiss")
+                        }
+                    }
+                }
+            }
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Switch(
+                checked = autoApplyThresholds,
+                onCheckedChange = { autoApplyThresholds = it; saved = false },
+            )
+            Text(
+                text = "Apply suggestions automatically after each ride",
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+        }
+
+        if (changes.isNotEmpty()) {
+            Text(
+                text = "Threshold changes",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            for (c in changes.asReversed()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = "${c.kind} ${"%.0f".format(c.fromVe)} → ${"%.0f".format(c.toVe)}, " +
+                            DateUtils.getRelativeTimeSpanString(
+                                c.atMs,
+                                System.currentTimeMillis(),
+                                DateUtils.MINUTE_IN_MILLIS,
+                            ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { onRevertChange(c); refreshThresholds() }) {
+                        Text("Revert")
+                    }
+                }
+            }
+        }
+
         OutlinedButton(
             onClick = { showResetConfirm = true },
             modifier = Modifier.fillMaxWidth(),
@@ -404,6 +496,7 @@ fun MainScreen(
                             maxHr = mHrVal!!,
                             restingHr = rHrVal!!,
                             dynamicStateEnabled = dynamicStateEnabled,
+                            autoApplyThresholds = autoApplyThresholds,
                         ),
                     )
                     saved = true
