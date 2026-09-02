@@ -99,9 +99,9 @@ Enable it under **Ventilatory State (Beta)** in the app. The settings section al
 - A **threshold suggestion card** for VT1 or VT2 when the last few rides agree and
   differ meaningfully from what's configured, with one-tap **Apply** / **Dismiss**, an
   **auto-apply** switch (off by default) to apply suggestions automatically, and a
-  change history with one-tap **Revert**. When a ride ends with a new suggestion, the
-  Karoo shows it there and then with **Apply** / **Dismiss** / **Later** — **Later**
-  leaves it waiting in settings.
+  change history with one-tap **Revert**. When a ride ends and a suggestion is
+  waiting, the Karoo shows it there and then with **Apply** / **Dismiss** /
+  **Later** — **Later** leaves it waiting in settings.
 - A **Reset baseline** button that discards everything learned so far and starts
   calibration over — use it after illness, a bike fit change, or a long break.
 

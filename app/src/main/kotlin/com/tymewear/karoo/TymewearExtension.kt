@@ -1,5 +1,6 @@
 package com.tymewear.karoo
 
+import android.content.Intent
 import io.hammerhead.karooext.KarooSystemService
 import io.hammerhead.karooext.extension.KarooExtension
 import io.hammerhead.karooext.internal.Emitter
@@ -160,8 +161,8 @@ class TymewearExtension : KarooExtension("tymewear", BuildConfig.VERSION_NAME) {
         if (!show) return
         try {
             startActivity(
-                android.content.Intent(ctx, SuggestionPromptActivity::class.java)
-                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                Intent(ctx, SuggestionPromptActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             )
         } catch (e: Exception) {
             Timber.w(e, "Could not open the suggestion prompt; it stays available in settings")
