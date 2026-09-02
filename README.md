@@ -24,9 +24,8 @@ I really like coffee, so if this enhances your life, please buy me one :)
 | **MI %** | Mobilization Index — ratio of breathing reserve to heart rate reserve. 100% = fully mobilized (limit) |
 | **MI Batt** | Mobilization Index as a battery gauge — shows remaining reserve, 0% = empty |
 | **VE Zones** | Time-in-zone bar chart (5 zones, matching Karoo's built-in HR/Power zone style) |
-| **VE State** | Today's ventilatory efficiency vs your own baseline (Beta). Negative = less breathing for the same power |
-| **VT1 Today** | The power at which you'd cross VT1 today, given how your breathing compares with baseline (Beta) |
-| **BR Drift** | Breathing-rate drift vs the effort's early reference (Beta). Requires a power meter paired to the Karoo — a live view of the "11–15% and you're done" rule |
+| **Vent State** | Today's day quality vs your own normal, and today's strap scale (Beta) |
+| **Power + VE zone** | 3-second power, with a top-edge strip coloured by your current ventilation zone |
 
 ## Ventilation Zones
 
@@ -52,22 +51,59 @@ periodically — Tymewear suggest every 6–8 weeks.
 
 ## Ventilatory State (Beta)
 
-Ventilatory thresholds move day to day with fatigue, heat, sleep and freshness. A fixed
-zone table asserts one number every day and is wrong on most of them.
+Ventilatory thresholds move day to day with fatigue, heat, sleep and freshness — and the
+VitalPro strap itself doesn't always sit exactly the same from ride to ride, so a
+slightly looser or tighter fit can read a bit high or low too. A fixed zone table asserts
+one number every day and can't tell any of that apart.
 
-With a power meter paired, K-Breathe learns what ventilation you normally produce at each
-power and then shows how today differs from it — as a percentage, and as the power at
-which you'd cross VT1 today. It needs no threshold test: the baseline builds itself from
-steady riding and tracks your fitness as it changes.
+With a power meter **and** heart rate both paired, K-Breathe learns two baselines from
+steady riding: how much you normally breathe at a given power, and at a given heart
+rate. Comparing the two separates a change in the strap's reading from a change in you:
 
-Enable it under **Ventilatory State (Beta)** in the app. Until enough steady riding has
-accumulated the fields show "calibrating" rather than a number. A **Reset baseline**
-button in the same section discards what has been learned so far and starts calibration
-over — use it if a baseline was built under unrepresentative conditions (illness, a bike
-fit change, a long break).
+- **Strap scale** — how far off today's strap reading is from normal, shown as e.g.
+  `×0.80`.
+- **Day quality** — today's breathing against your normal for the same power, *after*
+  the strap scale is removed. Negative means less breathing for the same effort — a
+  good sign; positive means more.
 
-**Requires a power meter.** Without power there is no power-to-ventilation relationship
-to measure, and the fields report unavailable.
+Recorded VE, breathing rate and tidal volume are never touched by this — only the zone
+colours, the VE Graph bands, the VE Zones bars and the day-quality number.
+
+It needs no threshold test: the baselines build themselves. From your third ride
+onward, K-Breathe usually pins down today's strap scale within the first 40 minutes of
+recording — typically around 10 minutes into a steady trainer ride, longer (commonly
+around half an hour) on a ragged, stop-start outdoor ride, and sometimes not at all on a
+ride that's too short or too ragged, in which case the ride just runs on your configured
+thresholds throughout. Once it locks, it holds for the rest of the ride, and the zone
+colours, VE Graph, VE Zones chart and the recorded `tyme_ve_zone` all switch to today's
+corrected thresholds.
+
+The **Vent State** field shows both numbers: day quality as the large figure, strap
+scale on the small line underneath — or `learning` before it locks, `scale n/a` if a
+reading falls outside a sane range (check the strap), or `off` when the Beta is
+disabled.
+
+The **Power + VE zone** field shows 3-second power with a coloured strip along the top
+edge for your current ventilation zone — handy if your main screen is built around power
+rather than VE. It works whether the Beta is on or off, and the strip turns grey when
+breathing data is stale or the strap is disconnected.
+
+Enable it under **Ventilatory State (Beta)** in the app. The settings section also shows:
+
+- Baseline status for both baselines (how much has been learned, and from how many
+  rides) — "calibrating" until there's enough.
+- The last ride's strap scale, with a "check strap tension and position" hint when it
+  was 10% or more off normal.
+- A **threshold suggestion card** for VT1 or VT2 when the last few rides agree and
+  differ meaningfully from what's configured, with one-tap **Apply** / **Dismiss**, an
+  **auto-apply** switch (off by default) to apply suggestions automatically, and a
+  change history with one-tap **Revert**.
+- A **Reset baseline** button that discards everything learned so far and starts
+  calibration over — use it after illness, a bike fit change, or a long break.
+
+**Requires a power meter and heart rate.** Without both, no scale can be estimated and
+the Beta fields report unavailable. Upgrading from an earlier version discards any old
+baseline and starts calibration fresh, since it's built from a different sampler.
 
 ## FIT Recording
 

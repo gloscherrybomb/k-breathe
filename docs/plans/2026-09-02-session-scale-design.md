@@ -239,7 +239,7 @@ per-ride record of the last 8 rides' pooled-curve breakpoints.
 On the rider's full Jan–Mar indoor history (14 rides, earlier sampler) the pooled curve
 showed a break near 205 W / 70 L/min. On the six indoor rides kept as test fixtures the
 fitter correctly reports **no** breakpoint: the curve flattens above 160 W, the 180 W bin
-holds 8600 of the samples, and everything above 220 W is thinly sampled, so no candidate
+holds 8600 raw samples (weighted at the 6000 cap), and everything above 220 W is thinly sampled, so no candidate
 clears the 25 % improvement gate. That refusal is the intended behaviour and is pinned by
 a test; the estimate will be revisited as the on-device baseline grows. The February
 ramp's piecewise fit (VT1 53 / VT2 80) was
