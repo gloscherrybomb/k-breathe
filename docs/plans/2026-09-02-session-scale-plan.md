@@ -124,7 +124,7 @@ git commit -m "Add heart rate to ride fixtures and two clean outdoor rides"
 Rules (must match exactly — the goldens depend on them):
 - `L` = exponentially weighted power, `alpha = 1 − exp(−1/60)`; a null power counts as 0 W. `L` starts at the first sample's value.
 - Keep the last 31 `L` values; `L30` is the oldest. Keep the last 30 coast flags (`loadW == null || loadW < 20`).
-- VE window: last 30 non-null values; a null VE **clears** it. HR window: last 30 non-null values; a null HR is skipped.
+- VE window: last 30 values; a null VE **clears** it. HR window: last 30 values; a null HR **clears** it too (both windows share the freshness contract).
 - A gap `nowMs − previousMs > 3000` resets everything (as `SteadyStateDetector` did).
 - Accept when: ticks since reset ≥ 120; 31 `L` values held; `60 ≤ L ≤ 320`; `|L − L30| / L < 0.10`; coast flags ≤ 2; VE and HR windows each hold ≥ 15 values; mean VE > 0; mean HR ≥ 60.
 - Emit `LoadVeSample(L, meanHr, meanVe)`.

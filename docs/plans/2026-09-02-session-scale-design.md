@@ -76,8 +76,10 @@ scope; correcting for its absence is what this spec does.
 - **One Beta field, "Vent State", replaces three.** Large number: **day quality**, how
   today's breathing compares with the rider's normal for the same effort *after* the
   strap scale is removed, e.g. `−8%` (fresher than usual, green cue) or `+9%` (heavier,
-  amber cue). Small line: the **strap scale**, e.g. `×0.80`, or `cal` while learning, or
-  `off`.
+  amber cue). Small line: the **strap scale**, e.g. `×0.80`. The two lines learn
+  separately, so while the day quality is still unknown the large line reads `cal` and
+  the small line reads `learning`; the small line reads `scale n/a` for an out-of-range
+  factor, and with the Beta off the large line reads `off` with the small line blank.
 - **New field "Power + VE zone"** (`power_vz`). For riders whose main screen shows power
   rather than VE: the large number is **3-second average power** from the Karoo's power
   stream, and a **coloured bar** along the top edge shows the **current VE zone** —
@@ -119,7 +121,11 @@ Settings, under the Beta toggle:
 - The per-second `tyme_ve_zone` field and the session time-in-zone fields use the
   corrected thresholds when the Beta is on (what the rider saw is what is recorded).
 - Two new session fields: `tyme_ve_scale` (dimensionless, e.g. 0.80) and
-  `tyme_day_quality` (%). Absent when the Beta is off or the scale never locked.
+  `tyme_day_quality` (%). Both absent when the Beta is off. Otherwise they appear
+  independently, because they are gated on different things: day quality is published
+  whenever both deviations are confident, the scale only once it has locked. So a ride
+  can record `tyme_day_quality` with no `tyme_ve_scale` beside it — a ride whose scale
+  never locked, or landed outside the clamp, is exactly that case.
 
 ## 3. The model
 
@@ -231,7 +237,11 @@ per-ride record of the last 8 rides' pooled-curve breakpoints.
 - **VT1 candidate** = VE at the lower accepted breakpoint; **VT2 candidate** = VE at the
   upper one. TopZ4 and VO2max are not estimated (steady riding never covers them).
 - **Stability**: a candidate is offered only when the last 3 rides' fits agree within
-  ± 4 L/min.
+  ± 4 L/min. Caveat: consecutive ride-end estimates are each fitted from the *cumulative*
+  pooled baseline, one ride richer than the last, so they are not independent samples —
+  by the time the baseline holds a dozen rides one more moves it very little. The "three
+  rides agree" gate therefore mostly guards against offering a fit that has not settled
+  yet, not against ride-to-ride variability.
 - **Suggest** when the candidate differs from the configured value by more than 8 %.
   Suggestions are for **VT1 and VT2 only**; the rider keeps TopZ4 and VO2max manual (or
   scales them by the same ratio via a one-tap option on the card).

@@ -67,7 +67,9 @@ rate. Comparing the two separates a change in the strap's reading from a change 
   good sign; positive means more.
 
 Recorded VE, breathing rate and tidal volume are never touched by this — only the zone
-colours, the VE Graph bands, the VE Zones bars and the day-quality number.
+colours, the VE Graph bands, the VE Zones bars, the **Power + VE zone** strip, the
+recorded per-second `tyme_ve_zone` (and the session time-in-zone fields it feeds) and
+the day-quality number.
 
 It needs no threshold test: the baselines build themselves. From your third ride
 onward, K-Breathe usually pins down today's strap scale within the first 40 minutes of
