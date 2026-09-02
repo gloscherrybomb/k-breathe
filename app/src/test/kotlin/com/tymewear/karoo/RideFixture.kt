@@ -4,6 +4,7 @@ package com.tymewear.karoo
  *  because the fixtures were exported at different times with different sets. */
 class RideFixture(
     val watts: List<Double?>,
+    val hr: List<Double?>,
     val ve: List<Double?>,
     val br: List<Double?>,
 ) {
@@ -28,18 +29,20 @@ class RideFixture(
                     header.indexOf(c).takeIf { it >= 0 }
                 }
             val wIdx = idx("watts")
+            val hIdx = idx("heartrate", "hr")
             val vIdx = idx("ve", "TymeVentilation", "tidal_volume_min")
             val bIdx = idx("br", "TymeBreathRate", "respiration")
             val watts = ArrayList<Double?>()
+            val hr = ArrayList<Double?>()
             val ve = ArrayList<Double?>()
             val br = ArrayList<Double?>()
             for (line in lines.drop(1)) {
                 val f = line.split(",")
                 fun get(i: Int?): Double? =
                     i?.let { f.getOrNull(it)?.trim()?.takeIf { s -> s.isNotEmpty() && s != "None" }?.toDoubleOrNull() }
-                watts.add(get(wIdx)); ve.add(get(vIdx)); br.add(get(bIdx))
+                watts.add(get(wIdx)); hr.add(get(hIdx)); ve.add(get(vIdx)); br.add(get(bIdx))
             }
-            return RideFixture(watts, ve, br)
+            return RideFixture(watts, hr, ve, br)
         }
     }
 }
