@@ -5,7 +5,6 @@ import android.content.SharedPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlin.math.abs
 import timber.log.Timber
 
 /** Baseline status read straight from prefs, for callers (the settings screen) that may
@@ -78,11 +77,6 @@ object VentilatoryState {
 
     private const val MAX_EVIDENCE = 8
     private const val MAX_CHANGES = 5
-
-    /** A suggestion is suppressed once it lands this close to the value the rider last
-     *  dismissed for that threshold — dismissing is "not this number", not "never ask
-     *  again". */
-    private const val DISMISS_TOLERANCE_VE = 3.0
 
     private val lock = Any()
 
@@ -380,7 +374,8 @@ object VentilatoryState {
     }
 
     /** Remembers [s]'s suggested value as dismissed for its kind, so it is filtered out
-     *  by [suggestionsFrom] until the estimate moves by [DISMISS_TOLERANCE_VE]. */
+     *  by [suggestionsFrom] until the estimate moves by
+     *  [ThresholdEvidence.DEFAULT_DISMISS_TOLERANCE_VE]. */
     fun dismissSuggestion(context: Context, s: Suggestion) {
         synchronized(lock) {
             val key = if (s.kind == ThresholdKind.VT1) KEY_DISMISSED_VT1 else KEY_DISMISSED_VT2
@@ -393,16 +388,19 @@ object VentilatoryState {
         loadChangeHistoryFrom(prefs(context))
     }
 
-    /** Undoes one applied change: writes its `fromVe` back and removes it from the
-     *  history. Does not restore whatever dismissal, if any, [apply] cleared when it
-     *  was made. */
+    /** Undoes one applied change: writes its `fromVe` back, removes it from the history,
+     *  and dismisses `toVe` for that kind — otherwise the same suggestion the rider just
+     *  undid would reappear on the next ride-end evidence update, since the pooled
+     *  evidence that produced it hasn't gone anywhere. */
     fun revert(context: Context, change: ThresholdChange) {
         synchronized(lock) {
             val prefs = prefs(context)
             val key = if (change.kind == ThresholdKind.VT1) "vt1_threshold" else "vt2_threshold"
+            val dismissKey = if (change.kind == ThresholdKind.VT1) KEY_DISMISSED_VT1 else KEY_DISMISSED_VT2
             val changes = loadChangeHistoryFrom(prefs).filterNot { it == change }
             prefs.edit()
                 .putFloat(key, change.fromVe.toFloat())
+                .putFloat(dismissKey, change.toVe.toFloat())
                 .putString(KEY_CHANGE_HISTORY, changes.joinToString("|") { it.serialise() })
                 .apply()
             TymewearData.loadThresholds(context)
@@ -427,13 +425,17 @@ object VentilatoryState {
     }
 
     /** [ThresholdEvidence.suggestions] on [history]/[configured], with whatever the
-     *  rider has dismissed for each kind filtered back out. */
+     *  rider has dismissed for each kind and anything that would break threshold
+     *  ordering filtered back out — both pure rules, delegated to
+     *  [ThresholdEvidence.filterSuggestions] so they are testable without preferences. */
     private fun suggestionsFrom(history: List<Breakpoints>, configured: ZoneThresholds, context: Context): List<Suggestion> {
         val prefs = prefs(context)
-        return ThresholdEvidence.suggestions(history, configured).filter { s ->
-            val dismissed = dismissedVe(prefs, s.kind)
-            dismissed == null || abs(s.suggestedVe - dismissed) >= DISMISS_TOLERANCE_VE
-        }
+        return ThresholdEvidence.filterSuggestions(
+            ThresholdEvidence.suggestions(history, configured),
+            configured,
+            dismissedVe(prefs, ThresholdKind.VT1),
+            dismissedVe(prefs, ThresholdKind.VT2),
+        )
     }
 
     private fun dismissedVe(prefs: SharedPreferences, kind: ThresholdKind): Double? {
@@ -446,9 +448,21 @@ object VentilatoryState {
      *  immediately. Called both from the settings screen (via [applySuggestion]) and,
      *  under auto-apply, from [onRideEnd] — both already hold [lock] when this runs.
      *  Safe to call while holding it: [TymewearData.loadThresholds] only reads prefs
-     *  and plain [TymewearData] fields, it never calls back into [VentilatoryState]. */
+     *  and plain [TymewearData] fields, it never calls back into [VentilatoryState].
+     *
+     *  Re-checks the ordering rule against the *current* configured thresholds rather
+     *  than trusting the caller's filtered list: the configuration can have moved since
+     *  the suggestion was computed — most concretely, an earlier suggestion in the same
+     *  auto-apply batch may have just changed the other threshold. Silently skips (with
+     *  a log) rather than writing a value that would break `VT1 < VT2 < TopZ4`. */
     private fun apply(context: Context, s: Suggestion) {
         val prefs = prefs(context)
+        TymewearData.loadThresholds(context)
+        val configured = TymewearData.configuredThresholds()
+        if (ThresholdEvidence.filterSuggestions(listOf(s), configured, null, null).isEmpty()) {
+            Timber.w("Skipping threshold suggestion $s: would break ordering against current thresholds $configured")
+            return
+        }
         val key = if (s.kind == ThresholdKind.VT1) "vt1_threshold" else "vt2_threshold"
         val dismissKey = if (s.kind == ThresholdKind.VT1) KEY_DISMISSED_VT1 else KEY_DISMISSED_VT2
         val change = ThresholdChange(s.kind, s.currentVe, s.suggestedVe, System.currentTimeMillis())

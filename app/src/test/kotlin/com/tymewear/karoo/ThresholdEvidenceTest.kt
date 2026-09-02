@@ -83,4 +83,24 @@ class ThresholdEvidenceTest {
         assertEquals(Breakpoints(null, null, null, null), Breakpoints.deserialise(Breakpoints(null, null, null, null).serialise()))
         assertNull(Breakpoints.deserialise("junk"))
     }
+
+    @Test
+    fun `a dismissed suggestion stays hidden until the estimate moves by three litres`() {
+        val cfg = ZoneThresholds(73.0, 96.0, 112.0, 130.0)
+        val s = listOf(Suggestion(ThresholdKind.VT1, 73.0, 66.0))
+        assertTrue(ThresholdEvidence.filterSuggestions(s, cfg, dismissedVt1 = 66.0, dismissedVt2 = null).isEmpty())
+        assertTrue(ThresholdEvidence.filterSuggestions(s, cfg, dismissedVt1 = 68.0, dismissedVt2 = null).isEmpty())   // moved 2
+        assertEquals(s, ThresholdEvidence.filterSuggestions(s, cfg, dismissedVt1 = 69.0, dismissedVt2 = null))      // moved 3
+        assertEquals(s, ThresholdEvidence.filterSuggestions(s, cfg, dismissedVt1 = null, dismissedVt2 = 66.0))      // other kind
+    }
+
+    @Test
+    fun `suggestions that would put the thresholds out of order are dropped`() {
+        val cfg = ZoneThresholds(73.0, 96.0, 112.0, 130.0)
+        val vt2TooHigh = Suggestion(ThresholdKind.VT2, 96.0, 115.0)      // above TopZ4
+        val vt1TooHigh = Suggestion(ThresholdKind.VT1, 73.0, 97.0)       // above VT2
+        val vt2TooLow = Suggestion(ThresholdKind.VT2, 96.0, 70.0)        // below VT1
+        val fine = Suggestion(ThresholdKind.VT2, 96.0, 105.0)
+        assertEquals(listOf(fine), ThresholdEvidence.filterSuggestions(listOf(vt2TooHigh, vt1TooHigh, vt2TooLow, fine), cfg, null, null))
+    }
 }

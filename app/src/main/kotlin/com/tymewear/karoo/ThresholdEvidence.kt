@@ -67,6 +67,11 @@ object ThresholdEvidence {
     const val DEFAULT_MIN_BRACKET_BINS = 2
     const val DEFAULT_MIN_IMPROVEMENT = 0.25
 
+    /** A suggestion is suppressed once it lands this close to the value the rider last
+     *  dismissed for that threshold — dismissing is "not this number", not "never ask
+     *  again". */
+    const val DEFAULT_DISMISS_TOLERANCE_VE = 3.0
+
     /** Below this a hinge coefficient is floating-point residue from fitting a knot to
      *  data that has none, not a real steepening. Physically negligible: 1e-9 L/min per
      *  additional watt is 3e-7 L/min across the whole power range. */
@@ -163,6 +168,24 @@ object ThresholdEvidence {
             }
         }
         return out
+    }
+
+    /** Drops suggestions the rider dismissed at (nearly) this value and any that would put the
+     *  thresholds out of order. Pure, so the two rules are testable without preferences. */
+    fun filterSuggestions(
+        suggestions: List<Suggestion>,
+        configured: ZoneThresholds,
+        dismissedVt1: Double?,
+        dismissedVt2: Double?,
+        dismissToleranceVe: Double = DEFAULT_DISMISS_TOLERANCE_VE,
+    ): List<Suggestion> = suggestions.filter { s ->
+        val dismissed = if (s.kind == ThresholdKind.VT1) dismissedVt1 else dismissedVt2
+        val notDismissed = dismissed == null || abs(s.suggestedVe - dismissed) >= dismissToleranceVe
+        val inOrder = when (s.kind) {
+            ThresholdKind.VT1 -> s.suggestedVe < configured.vt2
+            ThresholdKind.VT2 -> s.suggestedVe > configured.vt1 && s.suggestedVe < configured.topZ4
+        }
+        notDismissed && inOrder
     }
 
     private fun median(values: List<Double>): Double {
