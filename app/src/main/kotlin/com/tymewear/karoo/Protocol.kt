@@ -391,32 +391,32 @@ object Protocol {
     )
 
     // -------------------------------------------------------------------------
-    // Ventilation zone thresholds (Tymewear 5-zone model, Feb 2026 update)
+    // Ventilation zones (Tymewear 5-zone model, Tymewear's names)
     // -------------------------------------------------------------------------
     //
-    // Zone 1: Endurance     — below VT1
-    // Zone 2: VT1           — VT1 to VT2
-    // Zone 3: VT2           — VT2 to Top Z4
-    // Zone 4: Top Z4        — Top Z4 to VO2max
-    // Zone 5: VO2max+       — above VO2max
+    // Z1 — below Endurance
+    // Z2 — Endurance to VT1
+    // Z3 — VT1 to VT2
+    // Z4 — VT2 to Top Z4
+    // Z5 — Top Z4 and above (VO2max is the top of Z5, not an edge)
 
     /**
-     * Determine VE zone from minute ventilation value and user thresholds.
+     * Determine VE zone from minute ventilation value and the four zone edges.
      * Returns 0 if no data, 1-5 for active zones.
      */
     fun veZone(
         minuteVolume: Double,
+        endurance: Double,
         vt1: Double,
         vt2: Double,
         topZ4: Double,
-        vo2max: Double,
     ): Int {
         return when {
             minuteVolume <= 0.0 -> 0
-            minuteVolume < vt1 -> 1
-            minuteVolume < vt2 -> 2
-            minuteVolume < topZ4 -> 3
-            minuteVolume < vo2max -> 4
+            minuteVolume < endurance -> 1
+            minuteVolume < vt1 -> 2
+            minuteVolume < vt2 -> 3
+            minuteVolume < topZ4 -> 4
             else -> 5
         }
     }

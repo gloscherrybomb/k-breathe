@@ -3,9 +3,9 @@
   "packageName": "com.tymewear.karoo",
   "iconUrl": "https://github.com/gloscherrybomb/k-breathe/releases/latest/download/icon.png",
   "latestApkUrl": "https://github.com/gloscherrybomb/k-breathe/releases/latest/download/k-breathe.apk",
-  "latestVersion": "0.6.0",
-  "latestVersionCode": 11,
+  "latestVersion": "0.7.0",
+  "latestVersionCode": 13,
   "developer": "gloscherrybomb",
   "description": "Displays live breathing data from the Tymewear VitalPro sensor on your Karoo. Includes VE, breathing rate, tidal volume, mobilization index, VE graph, time-in-zones and a power field coloured by your breathing zone, with FIT recording, plus an opt-in Beta that corrects the zones for the strap's day-to-day scale and shows how today compares with your normal.",
-  "releaseNotes": "Beta rework: zone colours are now corrected for the strap's day-to-day volume scale (learned from the third ride, needs power and heart rate). Vent State shows day quality and the strap scale. New Power + VE zone field: 3s power with a strip in your current breathing zone. Settings can suggest VT1/VT2 changes. Removed: VT1 Power and BR Drift fields. The 0.5.0 baseline is discarded and calibration starts again."
+  "releaseNotes": "Thresholds and zones now use Tymewear's names: Endurance, VT1, VT2, Top Z4 and VO2max, with zones Z1 to Z5, so you can copy them straight from your Tymewear Fitness Profile. Your 0.6 settings move to the new names on upgrade (old VT1 becomes Endurance, VT2 becomes VT1, Top Z4 becomes VT2, VO2max becomes Top Z4); check the new VO2max value. Your zones do not change. The threshold suggestions are removed: K-Breathe never changes the numbers you save, and old suggestion data is deleted."
 }

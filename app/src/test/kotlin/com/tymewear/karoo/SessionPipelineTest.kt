@@ -22,7 +22,7 @@ class SessionPipelineTest {
         val (p, h) = baselines(excluding)
         val pipe = SessionPipeline(p, h, rideCount = 5, minBaselineBins = 3, minBaselineRides = 2)
         val f = RideFixture.load(name)
-        val configured = ZoneThresholds(73.0, 96.0, 112.0, 130.0)
+        val configured = ZoneThresholds(73.0, 96.0, 112.0, 130.0, 180.0)
         val outs = ArrayList<PipelineOutput>(); val zc = ArrayList<Int>(); val zs = ArrayList<Int>()
         for (i in f.watts.indices) {
             val o = pipe.onSample(f.watts[i], f.hr[i], f.ve[i], i * 1000L, recordingSeconds = i)

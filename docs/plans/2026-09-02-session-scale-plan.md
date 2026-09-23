@@ -1,5 +1,10 @@
 # Session Scale and Threshold Evidence — Implementation Plan
 
+> **Names (2026-09-23):** this document predates 0.7.0. Its `vt1`, `vt2`, `topZ4`, `vo2max`
+> (and "VT1", "VT2", "TopZ4", "VO2max" where they mean the configured fields) are the zone edges
+> Tymewear calls **Endurance, VT1, VT2, Top Z4**. See `2026-09-23-tymewear-names-design.md`.
+> The threshold evidence and suggestion feature (Tasks 10–11, spec §6) was removed in 0.7.0; see §5 of `2026-09-23-tymewear-names-design.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the 0.5.0 Beta's conflated "efficiency deviation" with a per-session strap-scale correction (so zone colours are right on the day) plus a cleaned day-quality number, add a power field carrying the live VE zone, and suggest threshold updates between rides from pooled, scale-normalised evidence.

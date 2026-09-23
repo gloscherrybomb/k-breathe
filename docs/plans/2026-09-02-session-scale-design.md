@@ -1,5 +1,10 @@
 # Session Scale and Threshold Evidence — Design Spec
 
+> **Names (2026-09-23):** this document predates 0.7.0. Its `vt1`, `vt2`, `topZ4`, `vo2max`
+> (and "VT1", "VT2", "TopZ4", "VO2max" where they mean the configured fields) are the zone edges
+> Tymewear calls **Endurance, VT1, VT2, Top Z4**. See `2026-09-23-tymewear-names-design.md`.
+> The threshold evidence and suggestion feature (§6 here) was removed in 0.7.0; see §5 of `2026-09-23-tymewear-names-design.md`.
+
 **Date:** 2026-09-02
 **Status:** Design — awaiting review before implementation planning
 **Supersedes:** the live-estimation parts of `2026-09-01-dynamic-ventilatory-state-design.md`.

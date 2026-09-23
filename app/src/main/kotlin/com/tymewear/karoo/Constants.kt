@@ -15,20 +15,20 @@ object Constants {
 
     /** Solid zone colors for backgrounds and bar charts. */
     val ZONE_COLORS_SOLID = intArrayOf(
-        Color.parseColor("#4DB6AC"),   // Z1 Teal (Endurance)
-        Color.parseColor("#0277BD"),   // Z2 Blue (VT1)
-        Color.parseColor("#F57F17"),   // Z3 Amber (VT2)
-        Color.parseColor("#EF6C00"),   // Z4 Orange (Top Z4)
-        Color.parseColor("#C62828"),   // Z5 Red (VO2Max)
+        Color.parseColor("#4DB6AC"),   // Z1 Teal   — below Endurance
+        Color.parseColor("#0277BD"),   // Z2 Blue   — Endurance to VT1
+        Color.parseColor("#F57F17"),   // Z3 Amber  — VT1 to VT2
+        Color.parseColor("#EF6C00"),   // Z4 Orange — VT2 to Top Z4
+        Color.parseColor("#C62828"),   // Z5 Red    — Top Z4 and above
     )
 
     /** Semi-transparent zone colors for graph background bands. */
     val ZONE_COLORS_ALPHA = intArrayOf(
-        Color.argb(120, 77, 182, 172),   // Z1 Teal (Endurance)
-        Color.argb(120, 2, 119, 189),    // Z2 Blue (VT1)
-        Color.argb(120, 245, 127, 23),   // Z3 Amber (VT2)
-        Color.argb(120, 239, 108, 0),    // Z4 Orange (Top Z4)
-        Color.argb(120, 198, 40, 40),    // Z5 Red (VO2Max)
+        Color.argb(120, 77, 182, 172),   // Z1 Teal
+        Color.argb(120, 2, 119, 189),    // Z2 Blue
+        Color.argb(120, 245, 127, 23),   // Z3 Amber
+        Color.argb(120, 239, 108, 0),    // Z4 Orange
+        Color.argb(120, 198, 40, 40),    // Z5 Red
     )
 
     /** Background color when no data / no zone. */
@@ -44,13 +44,16 @@ object Constants {
     }
 
     // -------------------------------------------------------------------------
-    // Default thresholds
+    // Default thresholds, under Tymewear's names. Placeholders so the
+    // fields render on first run, not a recommendation. `const`, so pure code can use
+    // them without initialising this object (which needs android.graphics.Color).
     // -------------------------------------------------------------------------
 
-    const val DEFAULT_VT1 = 73f
-    const val DEFAULT_VT2 = 96f
-    const val DEFAULT_TOP_Z4 = 112f
-    const val DEFAULT_VO2MAX = 130f
+    const val DEFAULT_ENDURANCE = 73f
+    const val DEFAULT_VT1 = 96f
+    const val DEFAULT_VT2 = 112f
+    const val DEFAULT_TOP_Z4 = 130f
+    const val DEFAULT_VO2MAX = 180f
 
     // -------------------------------------------------------------------------
     // Default MI parameters

@@ -1,5 +1,9 @@
 # Dynamic Ventilatory State Implementation Plan
 
+> **Names (2026-09-23):** this document predates 0.7.0. Its `vt1`, `vt2`, `topZ4`, `vo2max`
+> (and "VT1", "VT2", "TopZ4", "VO2max" where they mean the configured fields) are the zone edges
+> Tymewear calls **Endurance, VT1, VT2, Top Z4**. See `2026-09-23-tymewear-names-design.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Show the rider, live on the Karoo, how today's ventilatory response differs from their own rolling baseline — as an efficiency percentage and as today's threshold powers.

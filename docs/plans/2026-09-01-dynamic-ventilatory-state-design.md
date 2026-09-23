@@ -1,5 +1,9 @@
 # Dynamic Ventilatory State — Design Spec
 
+> **Names (2026-09-23):** this document predates 0.7.0. Its `vt1`, `vt2`, `topZ4`, `vo2max`
+> (and "VT1", "VT2", "TopZ4", "VO2max" where they mean the configured fields) are the zone edges
+> Tymewear calls **Endurance, VT1, VT2, Top Z4**. See `2026-09-23-tymewear-names-design.md`.
+
 **Date:** 2026-09-01 (rewritten — supersedes the first draft of the same date)
 **Status:** Design — awaiting review before implementation planning
 **Feature:** Live, on-Karoo measurement of how today's ventilatory response differs from

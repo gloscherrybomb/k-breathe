@@ -111,20 +111,19 @@ object TymewearData {
         _zoneTimes.value = ZoneTimes()
     }
 
-    // Zone thresholds (loaded from prefs)
-    var vt1Threshold = Constants.DEFAULT_VT1.toDouble()
-        private set
-    var vt2Threshold = Constants.DEFAULT_VT2.toDouble()
-        private set
-    var topZ4Threshold = Constants.DEFAULT_TOP_Z4.toDouble()
-        private set
-    var vo2maxThreshold = Constants.DEFAULT_VO2MAX.toDouble()
-        private set
+    // Zone thresholds under Tymewear's names (loaded from prefs)
+    @Volatile
+    private var configured = ZoneThresholds(
+        endurance = Constants.DEFAULT_ENDURANCE.toDouble(),
+        vt1 = Constants.DEFAULT_VT1.toDouble(),
+        vt2 = Constants.DEFAULT_VT2.toDouble(),
+        topZ4 = Constants.DEFAULT_TOP_Z4.toDouble(),
+        vo2max = Constants.DEFAULT_VO2MAX.toDouble(),
+    )
 
-    /** The rider's entered thresholds, untouched. Settings and the threshold evidence
-     *  compare against these. */
-    fun configuredThresholds(): ZoneThresholds =
-        ZoneThresholds(vt1Threshold, vt2Threshold, topZ4Threshold, vo2maxThreshold)
+    /** The rider's entered thresholds, untouched. Settings shows and edits these; the
+     *  zones classify against them (scaled, when the Beta has a strap scale). */
+    fun configuredThresholds(): ZoneThresholds = configured
 
     /**
      * The thresholds every zone consumer classifies against: the configured ones scaled
@@ -173,11 +172,9 @@ object TymewearData {
      * Load zone thresholds and MI parameters from SharedPreferences.
      */
     fun loadThresholds(context: Context) {
-        val prefs = context.getSharedPreferences("tymewear_prefs", Context.MODE_PRIVATE)
-        vt1Threshold = prefs.getFloat("vt1_threshold", Constants.DEFAULT_VT1).toDouble()
-        vt2Threshold = prefs.getFloat("vt2_threshold", Constants.DEFAULT_VT2).toDouble()
-        topZ4Threshold = prefs.getFloat("topz4_threshold", Constants.DEFAULT_TOP_Z4).toDouble()
-        vo2maxThreshold = prefs.getFloat("vo2max_threshold", Constants.DEFAULT_VO2MAX).toDouble()
+        ThresholdPrefs.ensureMigrated(context)
+        val prefs = context.getSharedPreferences(ThresholdPrefs.PREFS, Context.MODE_PRIVATE)
+        configured = ThresholdMigration.read(prefs.all)
         restingBr = prefs.getFloat("resting_br", Constants.DEFAULT_RESTING_BR).toDouble()
         maxBr = prefs.getFloat("max_br", Constants.DEFAULT_MAX_BR).toDouble()
         maxHr = prefs.getFloat("max_hr", Constants.DEFAULT_MAX_HR).toDouble()

@@ -135,18 +135,15 @@ class VeGraphDataType(extension: String) : DataTypeImpl(extension, "ve_graph") {
         // come from the one effective-threshold path rather than the raw configured
         // values (spec §5).
         val t = TymewearData.currentThresholds()
-        val vt1 = t.vt1
-        val vt2 = t.vt2
-        val topZ4 = t.topZ4
-        val vo2max = t.vo2max
 
-        // Auto-scale Y axis
+        // Auto-scale Y axis. Headroom is from Top Z4, the highest zone edge; VO2max (the
+        // top of Z5) is usually far above anything ridden and would squash the bands.
         val maxData = if (points.isNotEmpty()) points.max() else 0.0
-        val yMax = maxOf(vo2max * 1.2, maxData * 1.1, 50.0)
+        val yMax = maxOf(t.topZ4 * 1.2, maxData * 1.1, 50.0)
 
-        // Draw zone background bands
+        // Draw zone background bands: Z1 below Endurance ... Z5 from Top Z4 up.
         val zonePaint = Paint()
-        val thresholds = doubleArrayOf(0.0, vt1, vt2, topZ4, vo2max, yMax)
+        val thresholds = doubleArrayOf(0.0, t.endurance, t.vt1, t.vt2, t.topZ4, yMax)
         for (i in 0 until 5) {
             val yBottom = h - (thresholds[i] / yMax * h).toFloat()
             val yTop = h - (thresholds[i + 1] / yMax * h).toFloat()
@@ -165,8 +162,9 @@ class VeGraphDataType(extension: String) : DataTypeImpl(extension, "ve_graph") {
             textSize = 18f
             isAntiAlias = true
         }
-        val labels = arrayOf("VT1", "VT2", "TZ4")
-        val thresholdValues = doubleArrayOf(vt1, vt2, topZ4, vo2max)
+        // One line per zone edge, labelled with Tymewear's name for it.
+        val labels = arrayOf("END", "VT1", "VT2", "TZ4")
+        val thresholdValues = doubleArrayOf(t.endurance, t.vt1, t.vt2, t.topZ4)
         for (i in thresholdValues.indices) {
             val y = h - (thresholdValues[i] / yMax * h).toFloat()
             if (y in 0f..h.toFloat()) {

@@ -40,8 +40,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.tymewear.karoo.BaselineStatus
 import com.tymewear.karoo.Constants
-import com.tymewear.karoo.Suggestion
-import com.tymewear.karoo.ThresholdChange
+import com.tymewear.karoo.ThresholdKind
 import com.tymewear.karoo.TymewearData
 import kotlin.math.abs
 import kotlin.math.min
@@ -49,6 +48,7 @@ import kotlin.math.roundToInt
 
 data class PrefsData(
     val sensorId: String,
+    val endurance: Float,
     val vt1: Float,
     val vt2: Float,
     val topZ4: Float,
@@ -58,7 +58,6 @@ data class PrefsData(
     val maxHr: Float,
     val restingHr: Float,
     val dynamicStateEnabled: Boolean,
-    val autoApplyThresholds: Boolean,
 )
 
 @Composable
@@ -68,16 +67,12 @@ fun MainScreen(
     onResetBaseline: () -> Unit,
     loadBaselineStatus: () -> BaselineStatus,
     loadLastRideScale: () -> Double?,
-    loadSuggestions: () -> List<Suggestion>,
-    onApplySuggestion: (Suggestion) -> Unit,
-    onDismissSuggestion: (Suggestion) -> Unit,
-    loadChangeHistory: () -> List<ThresholdChange>,
-    onRevertChange: (ThresholdChange) -> Unit,
 ) {
     // Seeded from Constants so these placeholders cannot drift away from the values
     // the rest of the app actually falls back to. They are replaced by the stored
     // preferences in LaunchedEffect below.
     var sensorId by remember { mutableStateOf("") }
+    var endurance by remember { mutableStateOf(Constants.DEFAULT_ENDURANCE.toString()) }
     var vt1 by remember { mutableStateOf(Constants.DEFAULT_VT1.toString()) }
     var vt2 by remember { mutableStateOf(Constants.DEFAULT_VT2.toString()) }
     var topZ4 by remember { mutableStateOf(Constants.DEFAULT_TOP_Z4.toString()) }
@@ -87,13 +82,10 @@ fun MainScreen(
     var maxHr by remember { mutableStateOf(Constants.DEFAULT_MAX_HR.toString()) }
     var restingHr by remember { mutableStateOf(Constants.DEFAULT_RESTING_HR.toString()) }
     var dynamicStateEnabled by remember { mutableStateOf(false) }
-    var autoApplyThresholds by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf<String?>(null) }
     var baselineStatus by remember { mutableStateOf(BaselineStatus(0, 0, 0, 0L)) }
     var showResetConfirm by remember { mutableStateOf(false) }
-    var suggestions by remember { mutableStateOf<List<Suggestion>>(emptyList()) }
-    var changes by remember { mutableStateOf<List<ThresholdChange>>(emptyList()) }
     var lastScale by remember { mutableStateOf<Double?>(null) }
     val isConnected by TymewearData.isConnected.collectAsState()
 
@@ -105,27 +97,12 @@ fun MainScreen(
     fun refreshPersisted() {
         baselineStatus = loadBaselineStatus()
         lastScale = loadLastRideScale()
-        suggestions = loadSuggestions()
-        changes = loadChangeHistory()
-    }
-
-    // After applying or reverting a threshold change: the vt1/vt2 fields, the
-    // suggestion card and the change-history list can all have moved, so all four are
-    // reloaded together rather than patched in place.
-    fun refreshThresholds() {
-        val prefs = loadPrefs()
-        vt1 = prefs.vt1.toString()
-        vt2 = prefs.vt2.toString()
-        suggestions = loadSuggestions()
-        changes = loadChangeHistory()
-        // The VT1/VT2 fields on screen were just replaced from prefs, so a "Saved" label
-        // left over from an earlier Save would be claiming the rider saved these values.
-        saved = false
     }
 
     LaunchedEffect(Unit) {
         val prefs = loadPrefs()
         sensorId = prefs.sensorId
+        endurance = prefs.endurance.toString()
         vt1 = prefs.vt1.toString()
         vt2 = prefs.vt2.toString()
         topZ4 = prefs.topZ4.toString()
@@ -135,15 +112,13 @@ fun MainScreen(
         maxHr = prefs.maxHr.toString()
         restingHr = prefs.restingHr.toString()
         dynamicStateEnabled = prefs.dynamicStateEnabled
-        autoApplyThresholds = prefs.autoApplyThresholds
     }
 
     // The extension keeps writing the persisted values while this screen sits in the
-    // background, so a ride finished (or a threshold auto-applied at its end) between
-    // opening settings and coming back to them would otherwise leave the old numbers on
-    // screen until the process died. Re-read on every ON_RESUME. Deliberately excludes
-    // the text fields above: reloading those on resume would discard edits the rider had
-    // not saved yet.
+    // background, so a ride finished between opening settings and coming back to them
+    // would otherwise leave the old numbers on screen until the process died. Re-read on
+    // every ON_RESUME. Deliberately excludes the text fields above: reloading those on
+    // resume would discard edits the rider had not saved yet.
     var resumeCount by remember { mutableStateOf(0) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -208,44 +183,63 @@ fun MainScreen(
             color = MaterialTheme.colorScheme.onBackground,
         )
 
+        Text(
+            text = "Copy these from your Tymewear Fitness Profile. K-Breathe never " +
+                "changes the numbers you save.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+
+        // Tymewear's names and order. The first four are the zone edges; VO2max is the top
+        // of Z5 and does not change any zone.
         OutlinedTextField(
-            value = vt1,
-            onValueChange = { vt1 = it; saved = false },
-            label = { Text("VT1 threshold (L/min)") },
+            value = endurance,
+            onValueChange = { endurance = it; saved = false },
+            label = { Text("${ThresholdKind.ENDURANCE.label} (L/min)") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            supportingText = { Text("Z1 Endurance below, Z2 VT1 above") },
+            supportingText = { Text("Z1 below, Z2 above") },
+        )
+
+        OutlinedTextField(
+            value = vt1,
+            onValueChange = { vt1 = it; saved = false },
+            label = { Text("${ThresholdKind.VT1.label} (L/min)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            supportingText = { Text("Z2 below, Z3 above") },
         )
 
         OutlinedTextField(
             value = vt2,
             onValueChange = { vt2 = it; saved = false },
-            label = { Text("VT2 threshold (L/min)") },
+            label = { Text("${ThresholdKind.VT2.label} (L/min)") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            supportingText = { Text("Z3 VT2 above") },
+            supportingText = { Text("Z3 below, Z4 above") },
         )
 
         OutlinedTextField(
             value = topZ4,
             onValueChange = { topZ4 = it; saved = false },
-            label = { Text("Top Z4 threshold (L/min)") },
+            label = { Text("${ThresholdKind.TOP_Z4.label} (L/min)") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            supportingText = { Text("Z4 Top Z4 above") },
+            supportingText = { Text("Z4 below, Z5 above") },
         )
 
         OutlinedTextField(
             value = vo2max,
             onValueChange = { vo2max = it; saved = false },
-            label = { Text("VO2max threshold (L/min)") },
+            label = { Text("${ThresholdKind.VO2MAX.label} (L/min)") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            supportingText = { Text("Z5 VO2Max above") },
+            supportingText = { Text("Top of Z5") },
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -361,57 +355,6 @@ fun MainScreen(
             )
         }
 
-        for (s in suggestions) {
-            SuggestionCard(
-                s = s,
-                onApply = { onApplySuggestion(s); refreshThresholds() },
-                onDismiss = { onDismissSuggestion(s); suggestions = loadSuggestions() },
-            )
-        }
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Switch(
-                checked = autoApplyThresholds,
-                onCheckedChange = { autoApplyThresholds = it; saved = false },
-            )
-            Text(
-                text = "Apply suggestions automatically after each ride",
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-        }
-
-        if (changes.isNotEmpty()) {
-            Text(
-                text = "Threshold changes",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            for (c in changes.asReversed()) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        text = "${c.kind} ${"%.0f".format(c.fromVe)} → ${"%.0f".format(c.toVe)}, " +
-                            DateUtils.getRelativeTimeSpanString(
-                                c.atMs,
-                                System.currentTimeMillis(),
-                                DateUtils.MINUTE_IN_MILLIS,
-                            ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(onClick = { onRevertChange(c); refreshThresholds() }) {
-                        Text("Revert")
-                    }
-                }
-            }
-        }
-
         OutlinedButton(
             onClick = { showResetConfirm = true },
             modifier = Modifier.fillMaxWidth(),
@@ -441,8 +384,8 @@ fun MainScreen(
                         onClick = {
                             showResetConfirm = false
                             onResetBaseline()
-                            // The reset clears the last-ride scale and the evidence
-                            // history too, not just the bin counts.
+                            // The reset clears the last-ride scale too, not just the
+                            // bin counts.
                             refreshPersisted()
                         },
                     ) {
@@ -470,6 +413,7 @@ fun MainScreen(
 
         Button(
             onClick = {
+                val endVal = endurance.toFloatOrNull()
                 val v1Val = vt1.toFloatOrNull()
                 val v2Val = vt2.toFloatOrNull()
                 val tz4Val = topZ4.toFloatOrNull()
@@ -480,14 +424,14 @@ fun MainScreen(
                 val rHrVal = restingHr.toFloatOrNull()
 
                 val error = when {
-                    v1Val == null || v2Val == null || tz4Val == null || voVal == null ||
+                    endVal == null || v1Val == null || v2Val == null || tz4Val == null || voVal == null ||
                         rBrVal == null || mBrVal == null || mHrVal == null || rHrVal == null ->
                         "All fields must be valid numbers."
-                    v1Val <= 0 || v2Val <= 0 || tz4Val <= 0 || voVal <= 0 ||
+                    endVal <= 0 || v1Val <= 0 || v2Val <= 0 || tz4Val <= 0 || voVal <= 0 ||
                         rBrVal <= 0 || mBrVal <= 0 || mHrVal <= 0 || rHrVal <= 0 ->
                         "All values must be positive."
-                    v1Val >= v2Val || v2Val >= tz4Val || tz4Val >= voVal ->
-                        "Thresholds must be in order: VT1 < VT2 < Top Z4 < VO2max."
+                    endVal >= v1Val || v1Val >= v2Val || v2Val >= tz4Val || tz4Val >= voVal ->
+                        "Thresholds must be in order: Endurance < VT1 < VT2 < Top Z4 < VO2max."
                     rBrVal >= mBrVal ->
                         "Resting BR must be less than Max BR."
                     rHrVal >= mHrVal ->
@@ -503,6 +447,7 @@ fun MainScreen(
                     onSave(
                         PrefsData(
                             sensorId = sensorId,
+                            endurance = endVal!!,
                             vt1 = v1Val!!,
                             vt2 = v2Val!!,
                             topZ4 = tz4Val!!,
@@ -512,7 +457,6 @@ fun MainScreen(
                             maxHr = mHrVal!!,
                             restingHr = rHrVal!!,
                             dynamicStateEnabled = dynamicStateEnabled,
-                            autoApplyThresholds = autoApplyThresholds,
                         ),
                     )
                     saved = true

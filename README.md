@@ -29,15 +29,17 @@ I really like coffee, so if this enhances your life, please buy me one :)
 
 ## Ventilation Zones
 
-Five zones, bounded by your own ventilatory thresholds:
+Five zones, Z1–Z5, using the same names and edges as Tymewear's Fitness Profile:
 
-| Zone | Name | Range | Color |
-|------|------|-------|-------|
-| Z1 | Endurance | below VT1 | Teal |
-| Z2 | VT1 | VT1 – VT2 | Blue |
-| Z3 | VT2 | VT2 – Top Z4 | Amber |
-| Z4 | Top Z4 | Top Z4 – VO2max | Orange |
-| Z5 | VO2Max | above VO2max | Red |
+| Zone | Range | Color |
+|------|-------|-------|
+| Z1 | below Endurance | Teal |
+| Z2 | Endurance – VT1 | Blue |
+| Z3 | VT1 – VT2 | Amber |
+| Z4 | VT2 – Top Z4 | Orange |
+| Z5 | Top Z4 and above | Red |
+
+VO2max is the top of Z5. It is stored and shown, but it does not move any zone edge.
 
 **Set your own thresholds before relying on the zones.** Ventilation is highly
 individual — the VE at which you cross VT1 depends on your physiology, not on a
@@ -45,9 +47,17 @@ number that suits everyone. The app ships with placeholder values purely so the
 fields render something on first run; they are not a recommendation.
 
 Get your values from a [Tymewear threshold test](https://www.tymewear.com/blogs/startup-guides/threshold-test),
-then enter them under **Ventilation Zone Thresholds** in the K-Breathe app
-(VT1, VT2, Top Z4, VO2max, in L/min). Thresholds drift with fitness, so retest
-periodically — Tymewear suggest every 6–8 weeks.
+then copy the five numbers from your Tymewear Fitness Profile into
+**Ventilation Zone Thresholds** in the K-Breathe app: **Endurance, VT1, VT2, Top Z4,
+VO2max** (L/min). Thresholds drift with fitness, so retest periodically — Tymewear
+suggest every 6–8 weeks. K-Breathe never changes the numbers you save.
+
+**Upgrading from 0.6.x:** earlier versions used names one step off from Tymewear's —
+the field called "VT1" held what Tymewear calls Endurance, "VT2" held VT1, "Top Z4" held
+VT2, and "VO2max" held Top Z4. 0.7.0 moves your saved numbers onto the right names
+automatically, so your zones do not change, and sets VO2max to 180. Check VO2max against
+your Fitness Profile. The 0.6.x threshold suggestions, auto-apply and change history are
+gone, and their stored data is deleted.
 
 ## Ventilatory State (Beta)
 
@@ -96,12 +106,6 @@ Enable it under **Ventilatory State (Beta)** in the app. The settings section al
   rides) — "calibrating" until there's enough.
 - The last ride's strap scale, with a "check strap tension and position" hint when it
   was 10% or more off normal.
-- A **threshold suggestion card** for VT1 or VT2 when the last few rides agree and
-  differ meaningfully from what's configured, with one-tap **Apply** / **Dismiss**, an
-  **auto-apply** switch (off by default) to apply suggestions automatically, and a
-  change history with one-tap **Revert**. When a ride ends and a suggestion is
-  waiting, the Karoo shows it there and then with **Apply** / **Dismiss** /
-  **Later** — **Later** leaves it waiting in settings.
 - A **Reset baseline** button that discards everything learned so far and starts
   calibration over — use it after illness, a bike fit change, or a long break.
 

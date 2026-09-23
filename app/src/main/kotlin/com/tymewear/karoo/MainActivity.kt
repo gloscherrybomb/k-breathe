@@ -16,6 +16,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestBlePermissions()
+        // Before the form reads anything: a 0.6.x install still holds its thresholds under
+        // the old, one-step-off names.
+        ThresholdPrefs.ensureMigrated(applicationContext)
         setContent {
             AppTheme {
                 MainScreen(
@@ -23,34 +26,35 @@ class MainActivity : ComponentActivity() {
                         getSharedPreferences("tymewear_prefs", MODE_PRIVATE)
                             .edit()
                             .putString("sensor_id", prefs.sensorId)
-                            .putFloat("vt1_threshold", prefs.vt1)
-                            .putFloat("vt2_threshold", prefs.vt2)
-                            .putFloat("topz4_threshold", prefs.topZ4)
-                            .putFloat("vo2max_threshold", prefs.vo2max)
+                            .putFloat(ThresholdKeys.ENDURANCE, prefs.endurance)
+                            .putFloat(ThresholdKeys.VT1, prefs.vt1)
+                            .putFloat(ThresholdKeys.VT2, prefs.vt2)
+                            .putFloat(ThresholdKeys.TOP_Z4, prefs.topZ4)
+                            .putFloat(ThresholdKeys.VO2MAX, prefs.vo2max)
                             .putFloat("resting_br", prefs.restingBr)
                             .putFloat("max_br", prefs.maxBr)
                             .putFloat("max_hr", prefs.maxHr)
                             .putFloat("resting_hr", prefs.restingHr)
                             .putBoolean("dynamic_state_enabled", prefs.dynamicStateEnabled)
-                            .putBoolean("threshold_auto_apply", prefs.autoApplyThresholds)
                             .apply()
                         // Reload thresholds for immediate effect
                         TymewearData.loadThresholds(applicationContext)
                     },
                     loadPrefs = {
                         val p = getSharedPreferences("tymewear_prefs", MODE_PRIVATE)
+                        val t = ThresholdMigration.read(p.all)
                         PrefsData(
                             sensorId = p.getString("sensor_id", "") ?: "",
-                            vt1 = p.getFloat("vt1_threshold", Constants.DEFAULT_VT1),
-                            vt2 = p.getFloat("vt2_threshold", Constants.DEFAULT_VT2),
-                            topZ4 = p.getFloat("topz4_threshold", Constants.DEFAULT_TOP_Z4),
-                            vo2max = p.getFloat("vo2max_threshold", Constants.DEFAULT_VO2MAX),
+                            endurance = t.endurance.toFloat(),
+                            vt1 = t.vt1.toFloat(),
+                            vt2 = t.vt2.toFloat(),
+                            topZ4 = t.topZ4.toFloat(),
+                            vo2max = t.vo2max.toFloat(),
                             restingBr = p.getFloat("resting_br", Constants.DEFAULT_RESTING_BR),
                             maxBr = p.getFloat("max_br", Constants.DEFAULT_MAX_BR),
                             maxHr = p.getFloat("max_hr", Constants.DEFAULT_MAX_HR),
                             restingHr = p.getFloat("resting_hr", Constants.DEFAULT_RESTING_HR),
                             dynamicStateEnabled = p.getBoolean("dynamic_state_enabled", false),
-                            autoApplyThresholds = p.getBoolean("threshold_auto_apply", false),
                         )
                     },
                     onResetBaseline = {
@@ -61,21 +65,6 @@ class MainActivity : ComponentActivity() {
                     },
                     loadLastRideScale = {
                         VentilatoryState.lastRideScale(applicationContext)
-                    },
-                    loadSuggestions = {
-                        VentilatoryState.suggestions(applicationContext)
-                    },
-                    onApplySuggestion = { s ->
-                        VentilatoryState.applySuggestion(applicationContext, s)
-                    },
-                    onDismissSuggestion = { s ->
-                        VentilatoryState.dismissSuggestion(applicationContext, s)
-                    },
-                    loadChangeHistory = {
-                        VentilatoryState.changeHistory(applicationContext)
-                    },
-                    onRevertChange = { change ->
-                        VentilatoryState.revert(applicationContext, change)
                     },
                 )
             }
