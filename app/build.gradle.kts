@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.tymewear.karoo"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.tymewear.karoo"
@@ -49,6 +49,7 @@ android {
             // android.graphics.Color) return defaults instead of throwing, so pure
             // logic can be unit-tested on the JVM without Robolectric.
             isReturnDefaultValues = true
+            isIncludeAndroidResources = true
         }
     }
 }
@@ -66,4 +67,7 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlin.test.junit)
+    testImplementation("org.robolectric:robolectric:4.17")
+    testImplementation("androidx.test:core:1.6.1")
+    testImplementation("com.github.nikosavola.karoo-ext-testing:karoo-ext-testing-robolectric:0.1.1")
 }
